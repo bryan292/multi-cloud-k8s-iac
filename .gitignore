@@ -1,0 +1,3 @@
+.env
+.\intial-infra\aws\.terraform
+kubeconfig.yaml
