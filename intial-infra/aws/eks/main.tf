@@ -1,4 +1,29 @@
 
+resource "aws_security_group" "eks" {
+  name        = "${var.cluster_name} eks cluster"
+  description = "Allow traffic"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description      = "World"
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  tags = var.tags
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.21.0"
@@ -9,12 +34,12 @@ module "eks" {
     additional = aws_iam_policy.additional.arn
   }
 
-  vpc_id                         = var.vpc_id
-  subnet_ids                     = var.subnet_ids
-  control_plane_subnet_ids        = var.control_plane_subnet_ids
+  vpc_id                   = var.vpc_id
+  subnet_ids               = var.subnet_ids
+  control_plane_subnet_ids = var.control_plane_subnet_ids
 
-  cluster_endpoint_public_access = true
-
+  cluster_endpoint_public_access        = true
+  cluster_additional_security_group_ids = [aws_security_group.eks.id]
   # Extend cluster security group rules
   cluster_security_group_additional_rules = {
     ingress_nodes_ephemeral_ports_tcp = {
@@ -66,9 +91,13 @@ module "eks" {
     }
   }
 
+  node_security_group_tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = null
+  }
+
   eks_managed_node_group_defaults = {
-    ami_type = "AL2_x86_64"
-    instance_types = ["m6i.large", "m5.large", "m5n.large", "m5zn.large"]
+    ami_type                              = "AL2_x86_64"
+    instance_types                        = ["m6i.large", "m5.large", "m5n.large", "m5zn.large"]
     attach_cluster_primary_security_group = true
     vpc_security_group_ids                = [aws_security_group.additional.id]
     iam_role_additional_policies = {
@@ -82,9 +111,9 @@ module "eks" {
 
       instance_types = ["t3.small"]
       capacity_type  = "SPOT"
-      min_size     = 1
-      max_size     = 3
-      desired_size = 2
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 2
     }
 
     two = {
@@ -92,15 +121,15 @@ module "eks" {
 
       instance_types = ["t3.small"]
       capacity_type  = "SPOT"
-      min_size     = 1
-      max_size     = 2
-      desired_size = 1
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
     }
   }
   #manage_aws_auth_configmap = true
 
   tags = var.tags
-  
+
 }
 
 # https://aws.amazon.com/blogs/containers/amazon-ebs-csi-driver-is-now-generally-available-in-amazon-eks-add-ons/ 
@@ -165,12 +194,55 @@ resource "aws_iam_policy" "additional" {
   })
 }
 
+module "lb_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+
+  role_name                  = "${var.cluster_name}_lb"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]      
+    }
+  }
+}
+
+module "cm_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+
+  role_name                              = "${var.cluster_name}_cm"
+  attach_cert_manager_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["cert-manager:cert-manager"]
+    }
+  }
+}
+
+module "external_dns_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+
+  role_name                              = "${var.cluster_name}_external_dns"
+  attach_external_dns_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["external-dns:external-dns"]
+    }
+  }
+}
+
+
 resource "local_file" "kubeconfig" {
   filename = "${path.module}/../../../kubeconfig.yaml"
   content = templatefile("${path.module}/../kubeconfig/kubeconfig.tpl", {
-    endpoint                 = module.eks.cluster_endpoint
+    endpoint                   = module.eks.cluster_endpoint
     certificate_authority_data = module.eks.cluster_certificate_authority_data
-    cluster_name             = var.cluster_name
-    region                   = var.region
+    cluster_name               = var.cluster_name
+    region                     = var.region
   })
 }

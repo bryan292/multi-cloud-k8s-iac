@@ -23,6 +23,21 @@ output "eks_cluster_certificate_authority_data" {
   value       = module.eks.cluster_certificate_authority_data
 }
 
+output "eks_lb_role_arn" {
+  description = "The lb role arn."
+  value       = module.lb_role.iam_role_arn
+}
+
+output "eks_cm_role_arn" {
+  description = "The cm role arn."
+  value       = module.cm_role.iam_role_arn
+}
+
+output "eks_external_dns_role_arn" {
+  description = "The external-dns role arn."
+  value       = module.external_dns_role.iam_role_arn
+}
+
 # output "eks_node_group_name" {
 #   description = "The name of the EKS node group."
 #   value       = aws_eks_node_group.eks_node_group.node_group_name

@@ -1,3 +1,6 @@
 .env
-.\intial-infra\aws\.terraform
+Dockerfile
 kubeconfig.yaml
+config.yaml
+intial-infra\aws\*\state.tf
+intial-infra\aws\*\.terraform.lock.hcl
