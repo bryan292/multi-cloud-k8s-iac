@@ -43,9 +43,35 @@ variable "eks_external_dns_role_arn" {
   type        = string
 }
 
+variable "cluster_autoscaler_role_arn" {
+  description = "The cluster auto scaler role arn."
+  type        = string
+
+}
 
 variable "hosted_zone_id" {
   description = "Hosted Zone Id for the configured domain."
   type        = string
 }
 
+variable "environment" {
+  description = "The environment where the resources will be deployed."
+  type        = string
+
+}
+
+variable "repository" {
+  description = "The repository where the resources are stored."
+  type        = string
+}
+
+variable "branch" {
+  description = "The branch of the repository."
+  type        = string
+}
+
+variable "app_name" {
+  description = "The name of the application."
+  type        = string
+
+}

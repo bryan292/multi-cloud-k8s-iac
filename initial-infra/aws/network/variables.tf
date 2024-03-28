@@ -22,6 +22,12 @@ variable "tags" {
   type        = map(string)
 }
 
+variable "environment" {
+  description = "The environment where the resources will be deployed."
+  type        = string
+}
+
+
 
 # variable "subnet_cidr_blocks" {
 #   description = "List of CIDR blocks for subnets within the VPC."

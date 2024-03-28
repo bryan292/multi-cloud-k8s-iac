@@ -1,6 +1,6 @@
-
+#TODO change the cluter name to not use _ and use - instead
 resource "aws_security_group" "eks" {
-  name        = "${var.cluster_name} eks cluster"
+  name        = "${var.environment}_${var.cluster_name}_eks_cluster"
   description = "Allow traffic"
   vpc_id      = var.vpc_id
 
@@ -28,7 +28,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.21.0"
 
-  cluster_name    = var.cluster_name
+  cluster_name    = "${var.environment}-${var.cluster_name}"
   cluster_version = "1.27"
   iam_role_additional_policies = {
     additional = aws_iam_policy.additional.arn
@@ -92,12 +92,12 @@ module "eks" {
   }
 
   node_security_group_tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = null
+    "kubernetes.io/cluster/${var.environment}-${var.cluster_name}" = null
   }
 
   eks_managed_node_group_defaults = {
     ami_type                              = "AL2_x86_64"
-    instance_types                        = ["m6i.large", "m5.large", "m5n.large", "m5zn.large"]
+    instance_types                        = ["t3.small", "t3.medium", "m5.large", "m5n.large", "m5zn.large"]
     attach_cluster_primary_security_group = true
     vpc_security_group_ids                = [aws_security_group.additional.id]
     iam_role_additional_policies = {
@@ -106,25 +106,25 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    one = {
-      name = "${var.cluster_name}-group-1"
+    worker_nodes = {
+      name = "${var.environment}-${var.cluster_name}-w"
 
-      instance_types = ["t3.small"]
+      instance_types = ["t3.medium"]
       capacity_type  = "SPOT"
       min_size       = 1
       max_size       = 3
       desired_size   = 2
     }
 
-    two = {
-      name = "${var.cluster_name}-group-2"
+    # two = {
+    #   name = "${var.environment}-${var.cluster_name}-2"
 
-      instance_types = ["t3.small"]
-      capacity_type  = "SPOT"
-      min_size       = 1
-      max_size       = 2
-      desired_size   = 1
-    }
+    #   instance_types = ["t3.medium"]
+    #   capacity_type  = "SPOT"
+    #   min_size       = 1
+    #   max_size       = 5
+    #   desired_size   = 3
+    # }
   }
   #manage_aws_auth_configmap = true
 
@@ -160,7 +160,7 @@ resource "aws_eks_addon" "ebs-csi" {
 }
 
 resource "aws_security_group" "additional" {
-  name_prefix = "${var.cluster_name}-additional"
+  name_prefix = "${var.environment}-${var.cluster_name}-additional"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -178,7 +178,7 @@ resource "aws_security_group" "additional" {
 }
 
 resource "aws_iam_policy" "additional" {
-  name = "${var.cluster_name}-additional"
+  name = "${var.environment}-${var.cluster_name}-additional"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -197,13 +197,13 @@ resource "aws_iam_policy" "additional" {
 module "lb_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-  role_name                  = "${var.cluster_name}_lb"
+  role_name                              = "${var.environment}_${var.cluster_name}_lb"
   attach_load_balancer_controller_policy = true
 
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]      
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
 }
@@ -211,7 +211,7 @@ module "lb_role" {
 module "cm_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-  role_name                              = "${var.cluster_name}_cm"
+  role_name                  = "${var.environment}_${var.cluster_name}_cm"
   attach_cert_manager_policy = true
 
   oidc_providers = {
@@ -225,7 +225,7 @@ module "cm_role" {
 module "external_dns_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-  role_name                              = "${var.cluster_name}_external_dns"
+  role_name                  = "${var.environment}_${var.cluster_name}_external_dns"
   attach_external_dns_policy = true
 
   oidc_providers = {
@@ -236,13 +236,28 @@ module "external_dns_role" {
   }
 }
 
+module "cluster_autoscaler_role" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-resource "local_file" "kubeconfig" {
-  filename = "${path.module}/../../../kubeconfig.yaml"
-  content = templatefile("${path.module}/../kubeconfig/kubeconfig.tpl", {
+  role_name                        = "${var.environment}_${var.cluster_name}_autoscaler_role"
+  attach_cluster_autoscaler_policy = true
+  cluster_autoscaler_cluster_names = [module.eks.cluster_name]
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:cluster-autoscaler"]
+    }
+  }
+}
+
+
+resource "local_file" "kubeconfig" { #../../../initial-infra/aws/kubeconfig
+  filename = "${var.terragrunt_dir}/../../kubeconfig.yaml"
+  content = templatefile("${var.terragrunt_dir}/../../../initial-infra/aws/kubeconfig/kubeconfig.tpl", {
     endpoint                   = module.eks.cluster_endpoint
     certificate_authority_data = module.eks.cluster_certificate_authority_data
-    cluster_name               = var.cluster_name
+    cluster_name               = "${var.environment}-${var.cluster_name}"
     region                     = var.region
   })
 }

@@ -28,3 +28,15 @@ variable "region" {
   description = "Cluster Region."
   type        = string
 }
+
+variable "terragrunt_dir" {
+  description = "The directory where the Terragrunt configuration is located."
+  type        = string
+
+}
+
+variable "environment" {
+  description = "The environment where the resources will be deployed."
+  type        = string
+
+}

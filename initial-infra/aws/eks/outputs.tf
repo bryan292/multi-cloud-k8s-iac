@@ -38,6 +38,12 @@ output "eks_external_dns_role_arn" {
   value       = module.external_dns_role.iam_role_arn
 }
 
+output "cluster_autoscaler_role_arn" {
+  description = "The cluster auto scaler role arn."
+  value       = module.cluster_autoscaler_role.iam_role_arn
+}
+
+
 # output "eks_node_group_name" {
 #   description = "The name of the EKS node group."
 #   value       = aws_eks_node_group.eks_node_group.node_group_name
