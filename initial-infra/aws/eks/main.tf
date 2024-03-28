@@ -1,4 +1,3 @@
-#TODO change the cluter name to not use _ and use - instead
 resource "aws_security_group" "eks" {
   name        = "${var.environment}_${var.cluster_name}_eks_cluster"
   description = "Allow traffic"
@@ -28,13 +27,13 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "19.21.0"
 
-  cluster_name    = "${var.environment}-${var.cluster_name}"
+  cluster_name    = "${var.environment}-${var.cluster_name}" # EKS cluster name creted based on the environment and cluster name
   cluster_version = "1.27"
   iam_role_additional_policies = {
     additional = aws_iam_policy.additional.arn
   }
 
-  vpc_id                   = var.vpc_id
+  vpc_id                   = var.vpc_id # VPC ID where the cluster and workers will be deployed, received from the netwrork module
   subnet_ids               = var.subnet_ids
   control_plane_subnet_ids = var.control_plane_subnet_ids
 
@@ -50,7 +49,7 @@ module "eks" {
       type                       = "ingress"
       source_node_security_group = true
     }
-    # Test: https://github.com/terraform-aws-modules/terraform-aws-eks/pull/2319
+
     ingress_source_security_group_id = {
       description              = "Ingress from another computed security group"
       protocol                 = "tcp"
@@ -80,7 +79,7 @@ module "eks" {
       type        = "ingress"
       self        = true
     }
-    # Test: https://github.com/terraform-aws-modules/terraform-aws-eks/pull/2319
+
     ingress_source_security_group_id = {
       description              = "Ingress from another computed security group"
       protocol                 = "tcp"
@@ -91,11 +90,11 @@ module "eks" {
     }
   }
 
-  node_security_group_tags = {
+  node_security_group_tags = { # Tags for the node security group, used by the aws load balancer controller
     "kubernetes.io/cluster/${var.environment}-${var.cluster_name}" = null
   }
 
-  eks_managed_node_group_defaults = {
+  eks_managed_node_group_defaults = { # Default values for the managed node group
     ami_type                              = "AL2_x86_64"
     instance_types                        = ["t3.small", "t3.medium", "m5.large", "m5n.large", "m5zn.large"]
     attach_cluster_primary_security_group = true
@@ -106,7 +105,7 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    worker_nodes = {
+    worker_nodes = { # Managed node group configuration, using spot instances for cost savings
       name = "${var.environment}-${var.cluster_name}-w"
 
       instance_types = ["t3.small"]
@@ -126,13 +125,11 @@ module "eks" {
     #   desired_size   = 3
     # }
   }
-  #manage_aws_auth_configmap = true
 
   tags = var.tags
 
 }
 
-# https://aws.amazon.com/blogs/containers/amazon-ebs-csi-driver-is-now-generally-available-in-amazon-eks-add-ons/ 
 data "aws_iam_policy" "ebs_csi_policy" {
   arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
@@ -194,6 +191,7 @@ resource "aws_iam_policy" "additional" {
   })
 }
 
+# Create the IAM roles for the service accounts
 module "lb_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
@@ -251,8 +249,8 @@ module "cluster_autoscaler_role" {
   }
 }
 
-
-resource "local_file" "kubeconfig" { #../../../initial-infra/aws/kubeconfig
+# Createa a kubeconfig file that can  be used by kubectl
+resource "local_file" "kubeconfig" {
   filename = "${var.terragrunt_dir}/../../kubeconfig.yaml"
   content = templatefile("${var.terragrunt_dir}/../../../initial-infra/aws/kubeconfig/kubeconfig.tpl", {
     endpoint                   = module.eks.cluster_endpoint

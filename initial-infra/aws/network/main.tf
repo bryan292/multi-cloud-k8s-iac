@@ -13,7 +13,7 @@ module "network" {
   version = "5.4.0"
 
   name = "${var.environment}-${var.vpc_name}"
-
+  #TODO: Add bellow as variables to the module definition:
   cidr = "10.0.0.0/16"
 
   azs = slice(data.aws_availability_zones.available.names, 0, 3)
