@@ -49,6 +49,12 @@ variable "cluster_autoscaler_role_arn" {
 
 }
 
+variable "cluster_autoscaler" {
+  type        = bool
+  description = "value to enable or disable cluster autoscaler"
+  default     = false
+}
+
 variable "hosted_zone_id" {
   description = "Hosted Zone Id for the configured domain."
   type        = string

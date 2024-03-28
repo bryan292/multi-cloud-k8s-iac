@@ -34,6 +34,7 @@ inputs = {
   eks_cm_role_arn             = dependency.eks.outputs.eks_cm_role_arn
   eks_external_dns_role_arn   = dependency.eks.outputs.eks_external_dns_role_arn
   cluster_autoscaler_role_arn = dependency.eks.outputs.cluster_autoscaler_role_arn
+  cluster_autoscaler          = include.global.locals.config.umbrella.cluster_autoscaler
   repository                  = include.global.locals.config.global.app_repo
   app_name                    = include.global.locals.config.global.app_name
   branch                      = include.global.locals.config.global.branch

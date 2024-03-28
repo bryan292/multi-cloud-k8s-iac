@@ -22,6 +22,7 @@ inputs = {
   subnet_ids               = dependency.network.outputs.private_subnets_ids
   control_plane_subnet_ids = dependency.network.outputs.intra_subnets_ids
   vpc_id                   = dependency.network.outputs.vpc_id
+  cluster_autoscaler       = include.global.locals.config.umbrella.cluster_autoscaler
   tags                     = include.global.locals.config.global.common_tags
   region                   = include.global.locals.config.global.region
 }

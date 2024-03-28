@@ -40,3 +40,9 @@ variable "environment" {
   type        = string
 
 }
+
+variable "cluster_autoscaler" {
+  type        = bool
+  description = "value to enable or disable cluster autoscaler"
+  default     = false
+}

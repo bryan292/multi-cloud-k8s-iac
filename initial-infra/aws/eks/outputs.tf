@@ -39,6 +39,7 @@ output "eks_external_dns_role_arn" {
 }
 
 output "cluster_autoscaler_role_arn" {
-  description = "The cluster auto scaler role arn."
-  value       = module.cluster_autoscaler_role.iam_role_arn
+  value       = length(module.cluster_autoscaler_role) > 0 ? module.cluster_autoscaler_role[0].iam_role_arn : ""
+  description = "The ARN of the IAM role created for the cluster autoscaler."
 }
+

@@ -108,7 +108,7 @@ module "eks" {
     worker_nodes = { # Managed node group configuration, using spot instances for cost savings
       name = "${var.environment}-${var.cluster_name}-w"
 
-      instance_types = ["t3.small"]
+      instance_types = ["t3.medium"]
       capacity_type  = "SPOT"
       min_size       = 1
       max_size       = 3
@@ -237,6 +237,7 @@ module "external_dns_role" {
 module "cluster_autoscaler_role" {
   source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
+  count                            = var.cluster_autoscaler ? 1 : 0
   role_name                        = "${var.environment}_${var.cluster_name}_autoscaler_role"
   attach_cluster_autoscaler_policy = true
   cluster_autoscaler_cluster_names = [module.eks.cluster_name]

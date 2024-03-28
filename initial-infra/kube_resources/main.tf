@@ -70,5 +70,6 @@ resource "kubernetes_config_map" "cert_manager_config" {
     "repository"                  = var.repository
     "branch"                      = var.branch
     "app_name"                    = var.app_name
+    "cluster_autoscaler"          = var.cluster_autoscaler
   }
 }
