@@ -1,46 +1,118 @@
-# Multi Cloud K8S IAC
+# Multi-Cloud K8S IAC
 
-A single repository to deploy on different cloud providers a kubernetes cluster and intial tools
+A single repository to deploy on (different cloud providers) EKS, a Kubernetes cluster, and initial tools.
 
 ## Table of Contents
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+- [Installation and Usage](#usage)
+- [Details](#details)
 
+---
 ## Requirements
- - Docker Desktop
- - AWS Account (access key, secret access key)
-
-## Installation
+ - Docker Desktop.
+ - AWS Account (access key, secret access key).
+---
+## Installation and Usage
 
 To install and set up the project, follow these steps:
 
 1. Clone the repository.
-2. create an `.env` file based on example
-3. run `docker-compose up --build`
-4. Start the application using `npm start`.
+2. create an `.env` file based on the [example](.env_sample).
+3. Run `docker-compose up --build`.
+4. Create a config.yaml file inside the `./dev` check [example](.config.yaml_example).
+5. Go to the dev folder and run `terragrunt run-all apply`.
+---
+## Details
+### Why terragrunt?
+The `kubernetes_manifest` does not play nice with dependencies. The stage approach using Terragrunt allows you to wait for the resources to be deployed before moving to the next stage.
 
-## Usage
+### How does it work?
+The installation has four stages. When the four stages are completed, the cluster will install an umbrella repository, which will install applications and tools inside the cluster.
 
-To use the project, follow these instructions:
+**1. Network**
+    VPC, Subenets
 
-1. Open the application in your web browser.
-2. Create a new account or log in with your existing credentials.
-3. Explore the different features and functionalities.
+#### Inputs
+| Name | Description | Type |
+|---|---|---|
+| vpc_cidr | CIDR block for the VPC. | string |
+| vpc_name | Name for the VPC. | string |
+| cluster_name | Name for the cluster. | string |
+| domain | Name for the domain. | string |
+| tags | List of tags for the module. | map(string) |
+| environment | The environment where the resources will be deployed. | string |
 
-## Contributing
+#### Outputs
+| Name | Description | Type |
+|---|---|---|
+| vpc_id | The ID of the created VPC. | string |
+| private_subnets_ids | The IDs of the created private subnets. | list(string) |
+| intra_subnets_ids | The IDs of the created internal subnets. | list(string) |  | public_subnets_ids | The IDs of the created public subnets. | list(string) |
 
-Contributions are welcome! If you would like to contribute to the project, please follow these guidelines:
+**2. EKS**
+    EKS Cluster, IAM Roles and policies, Nodes
+    when this stage is ready it does provides the kubeconfig on a file in the dev folder.
 
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Make your changes and commit them.
-4. Push your changes to your forked repository.
-5. Submit a pull request to the main repository.
+#### Inputs
 
-## License
+| Name | Description | Type |
+|---|---|---|
+| cluster_name | The name for your EKS cluster. | string |
+| vpc_id | The ID of the created VPC. | string |
+| subnet_ids | A list of subnet IDs where the EKS cluster will be deployed. | list(string) |
+| control_plane_subnet_ids | (Optional) A list of subnet IDs for the EKS control plane nodes. Defaults to `subnet_ids`. | list(string) |
+| tags | List of tags for the module. | map(string) |
+| region | Cluster Region. | string |
+| terragrunt_dir | (Optional) The directory where the Terragrunt configuration is located. | string |
+| environment | The environment where the resources will be deployed. | string |
 
-This project is licensed under the [MIT License](LICENSE). Please see the `LICENSE` file for more details.
+#### Outputs
+
+| Name | Description | Type |
+|---|---|---|
+| eks_cluster_name | The name of the EKS cluster. | string |
+| eks_cluster_endpoint | The endpoint of the EKS cluster. | string |
+| eks_cluster_security_group_ids | (List) The security group IDs associated with the EKS cluster. | list(string) |  | eks_cluster_id | The EKS cluster id. | string |
+| eks_cluster_certificate_authority_data | Base64 encoded certificate data required to communicate with the cluster. | string |
+| eks_lb_role_arn | The lb role arn. | string |
+| eks_cm_role_arn | The cm role arn. | string |
+| eks_external_dns_role_arn | The external-dns role arn. | string |
+| cluster_autoscaler_role_arn | The cluster auto scaler role arn. | string |
+
+
+**3. Kubernetes and Helm provider**
+    Install Flux
+
+#### Inputs
+
+| Name | Description | Type |
+|---|---|---|
+| region | Cluster Region. | string |
+| host | The endpoint of the EKS cluster. | string |
+| cluster_ca_cert | Base64 encoded certificate data required to communicate with the cluster. | string |
+| cluster_name | The name of the EKS cluster. (Optional if using host and cluster_ca_cert) | string |
+
+**4. Kubernetes resources**
+    Last stage, since the resources created on this stage are flux CRDs do not wait for the flux to be ready they are created last, this stage also creates a configmap used by helm to parametrisize several installations.
+
+#### Inputs
+
+| Name | Description | Type |
+|---|---|---|
+| region | Cluster Region. | string |
+| host | The endpoint of the EKS cluster. (Optional) | string |
+| cluster_ca_cert | Base64 encoded certificate data required to communicate with the cluster. (Optional) | string |
+| cluster_name | The name of the EKS cluster. | string |
+| domain | Name for the domain. | string |
+| vpc_id | The ID of the created VPC. | string |
+| eks_lb_role_arn | The lb role arn. | string |
+| eks_cm_role_arn | The cm role arn. | string |
+| eks_external_dns_role_arn | The external-dns role arn. | string |
+| cluster_autoscaler_role_arn | The cluster auto scaler role arn. | string |
+| hosted_zone_id | Hosted Zone Id for the configured domain. | string |
+| environment | The environment where the resources will be deployed. | string |
+| repository | The repository where the resources are stored. | string |
+| branch | The branch of the repository. | string |
+| app_name | The name of the application. | string |
