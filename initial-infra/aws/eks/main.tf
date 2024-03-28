@@ -109,7 +109,7 @@ module "eks" {
     worker_nodes = {
       name = "${var.environment}-${var.cluster_name}-w"
 
-      instance_types = ["t3.medium"]
+      instance_types = ["t3.small"]
       capacity_type  = "SPOT"
       min_size       = 1
       max_size       = 3
