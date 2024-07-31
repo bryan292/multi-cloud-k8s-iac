@@ -20,7 +20,7 @@ To install and set up the project, follow these steps:
 
 1. Clone the repository.
 2. create an `.env` file based on the [example](.env_sample).
-3. Run `docker-compose up --build`.
+3. Run `docker-compose run terraform-container`.
 4. Create a config.yaml file inside the `./dev` check [example](.config.yaml_example).
 5. Go to the dev folder and run `terragrunt run-all apply`.
 ---
