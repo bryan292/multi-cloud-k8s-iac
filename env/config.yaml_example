@@ -1,0 +1,22 @@
+global:
+  cluster_name: demo
+  bucket_name: multi-cloud-k8s-iac
+  region: us-east-1
+  email: bryan292@outlook.com
+  provider: aws
+  environment: dev
+  common_tags:
+    Environment: "Development"
+    Owner: "Bryan Cerdas"
+    project: "Multi-Cloud-K8s"
+  app_name: node-test-app
+  branch: dev
+  app_repo: https://github.com/bryan292/node-test-app
+
+umbrella:
+  cluster_autoscaler: false
+
+network:
+  vpc_cidr: "10.0.0.0/16" 
+  domain: 292s.io
+  hosted_zone_id: Z02937251Z7C2YM5LJJVL
