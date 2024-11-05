@@ -12,8 +12,8 @@ RUN apk add --update --no-cache curl unzip python3 py3-pip bash git && \
     pip3 install awscli
 
 # Install Terraform
-RUN curl -LO "https://releases.hashicorp.com/terraform/1.1.5/terraform_1.1.5_linux_amd64.zip" && \
-    unzip terraform_1.1.5_linux_amd64.zip -d /usr/local/bin
+RUN curl -LO "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip" && \
+    unzip terraform_1.9.8_linux_amd64.zip -d /usr/local/bin
 
 # Install Terragrunt
 RUN wget https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O /bin/terragrunt && \
@@ -30,7 +30,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     mv kubectl /usr/local/bin/
 
 # Clean up
-RUN rm -rf terraform_1.1.5_linux_amd64.zip linux-amd64 helm-v3.8.0-linux-amd64.tar.gz
+RUN rm -rf terraform_1.9.8_linux_amd64.zip linux-amd64 helm-v3.8.0-linux-amd64.tar.gz
 
 # Set the working directory within the container
 WORKDIR /app
