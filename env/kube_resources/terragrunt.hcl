@@ -38,5 +38,15 @@ inputs = {
   repository                  = include.global.locals.config.global.app_repo
   app_name                    = include.global.locals.config.global.app_name
   branch                      = include.global.locals.config.global.branch
+  email                       = include.global.locals.config.global.email
+  external_dns = include.global.locals.config.umbrella.external_dns
+  metrics_server = include.global.locals.config.umbrella.metrics_server
+  cert_manager = include.global.locals.config.umbrella.cert_manager
+  prometheus = include.global.locals.config.umbrella.prometheus
+  grafana =   include.global.locals.config.umbrella.grafana
+  loki = include.global.locals.config.umbrella.loki
+  aws_load_balancer_controller = include.global.locals.config.umbrella.aws_load_balancer_controller
+  weave_gitops = include.global.locals.config.umbrella.weave_gitops
+  custom_app = include.global.locals.config.umbrella.custom_app
 
 }

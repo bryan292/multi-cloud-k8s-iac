@@ -57,19 +57,29 @@ resource "kubernetes_config_map" "cert_manager_config" {
   }
 
   data = {
-    "eks_cm_role_arn"             = var.eks_cm_role_arn
-    "eks_lb_role_arn"             = var.eks_lb_role_arn
-    "eks_external_dns_role_arn"   = var.eks_external_dns_role_arn
-    "cluster_autoscaler_role_arn" = var.cluster_autoscaler_role_arn
-    "cluster_name"                = var.cluster_name
-    "domain"                      = var.domain
-    "hosted_zone_id"              = var.hosted_zone_id
-    "region"                      = var.region
-    "vpc_id"                      = var.vpc_id
-    "environment"                 = var.environment
-    "repository"                  = var.repository
-    "branch"                      = var.branch
-    "app_name"                    = var.app_name
-    "cluster_autoscaler"          = var.cluster_autoscaler
+    "eks_cm_role_arn"              = var.eks_cm_role_arn
+    "eks_lb_role_arn"              = var.eks_lb_role_arn
+    "eks_external_dns_role_arn"    = var.eks_external_dns_role_arn
+    "cluster_autoscaler_role_arn"  = var.cluster_autoscaler_role_arn
+    "cluster_name"                 = var.cluster_name
+    "domain"                       = var.domain
+    "hosted_zone_id"               = var.hosted_zone_id
+    "region"                       = var.region
+    "vpc_id"                       = var.vpc_id
+    "environment"                  = var.environment
+    "repository"                   = var.repository
+    "branch"                       = var.branch
+    "app_name"                     = var.app_name
+    "cluster_autoscaler"           = var.cluster_autoscaler
+    "email"                        = var.email
+    "external_dns"                 = var.external_dns
+    "metrics_server"               = var.metrics_server
+    "cert_manager"                 = var.cert_manager
+    "prometheus"                   = var.prometheus
+    "grafana"                      = var.grafana
+    "loki"                         = var.loki
+    "aws_load_balancer_controller" = var.aws_load_balancer_controller
+    "weave_gitops"                 = var.weave_gitops
+    "custom_app"                   = var.custom_app
   }
 }

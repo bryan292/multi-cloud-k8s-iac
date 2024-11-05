@@ -9,7 +9,6 @@ include "global" {
 }
 
 inputs = {
-  vpc_cidr     = "${include.global.locals.config.network.vpc_cidr}"        # Specify the CIDR block for the VPC
   vpc_name     = "${include.global.locals.config.global.cluster_name}-vpc" # Customize the name for the VPC
   environment  = include.global.locals.config.global.environment
   cluster_name = "${include.global.locals.config.global.cluster_name}-cluster"

@@ -81,3 +81,66 @@ variable "app_name" {
   type        = string
 
 }
+
+variable "email" {
+  description = "The email address to use for the certificate."
+  type        = string
+
+}
+
+variable "external_dns" {
+  description = "Enable or disable external-dns."
+  type        = bool
+  default     = false
+}
+
+variable "metrics_server" {
+  description = "Enable or disable metrics-server."
+  type        = bool
+  default     = false
+}
+
+variable "cert_manager" {
+  description = "Enable or disable cert-manager."
+  type        = bool
+  default     = false
+}
+
+variable "prometheus" {
+  description = "Enable or disable prometheus."
+  type        = bool
+  default     = false
+}
+
+variable "grafana" {
+  description = "Enable or disable grafana."
+  type        = bool
+  default     = false
+}
+
+variable "loki" {
+  description = "Enable or disable loki."
+  type        = bool
+  default     = false
+}
+
+variable "aws_load_balancer_controller" {
+  description = "Enable or disable aws-load-balancer-controller."
+  type        = bool
+  default     = false
+}
+
+variable "weave_gitops" {
+  description = "Enable or disable weave-gitops."
+  type        = bool
+  default     = false
+}
+
+variable "custom_app" {
+  description = "Enable or disable custom-app."
+  type        = bool
+  default     = false
+}
+
+
+
