@@ -37,7 +37,7 @@ resource "kubernetes_manifest" "helmrelease" {
       interval = "1m"
       chart = {
         spec = {
-          chart = "./chart" # Adjust the path to where your umbrella chart is located within the repository
+          chart = "./charts" # Adjust the path to where your umbrella chart is located within the repository
           sourceRef = {
             kind      = "GitRepository"
             name      = "helm-umbrella-charts"
