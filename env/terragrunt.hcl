@@ -1,5 +1,10 @@
 locals {
-  config = yamldecode(file("config.yaml"))
+  config = yamldecode(file("${get_repo_root()}/config.yaml"))
+  kubernetes_version = try(local.config.kubernetes_version, local.config.global.kubernetes_version)
+}
+
+inputs = {
+  kubernetes_version = local.kubernetes_version
 }
 
 

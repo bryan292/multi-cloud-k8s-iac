@@ -19,10 +19,10 @@ A single repository to deploy on (different cloud providers) EKS, a Kubernetes c
 To install and set up the project, follow these steps:
 
 1. Clone the repository.
-2. create an `.env` file based on the [example](.env_sample).
-3. Run `docker-compose run terraform-container`.
-4. Create a config.yaml file inside the `./dev` check [example](.config.yaml_example).
-5. Go to the dev folder and run `terragrunt run-all apply`.
+2. create an `.env` file based on the [example](.env_sample) at the root of the repository.
+3. Create a config.yaml file inside the `./dev` check [example](.config.yaml_example).
+4. Run `docker-compose run terraform-container`.
+5. Run `terragrunt run-all apply`.
 ---
 ## Details
 ### Why terragrunt?

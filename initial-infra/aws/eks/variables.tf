@@ -46,3 +46,8 @@ variable "cluster_autoscaler" {
   description = "value to enable or disable cluster autoscaler"
   default     = false
 }
+
+variable "kubernetes_version" {
+  description = "The version of Kubernetes to use for the EKS cluster."
+  type        = string
+}

@@ -28,7 +28,7 @@ module "eks" {
   version = "20.27.0"
 
   cluster_name                             = "${var.environment}-${var.cluster_name}" # EKS cluster name creted based on the environment and cluster name
-  cluster_version                          = "1.29"
+  cluster_version                          = var.kubernetes_version
   enable_cluster_creator_admin_permissions = true
   iam_role_additional_policies = {
     additional = aws_iam_policy.additional.arn
