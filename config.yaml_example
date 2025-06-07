@@ -1,4 +1,5 @@
 global:
+  kubernetes_version: "1.30"
   cluster_name: demo
   bucket_name: multi-cloud-k8s-iac
   region: us-east-1
