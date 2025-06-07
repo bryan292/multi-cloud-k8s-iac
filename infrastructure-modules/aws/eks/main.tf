@@ -149,7 +149,7 @@ module "irsa-ebs-csi" {
 resource "aws_eks_addon" "ebs-csi" {
   cluster_name             = module.eks.cluster_name
   addon_name               = "aws-ebs-csi-driver"
-  addon_version            = "v1.20.0-eksbuild.1"
+  # Use the latest available version by omitting addon_version, or set to a supported version
   service_account_role_arn = module.irsa-ebs-csi.iam_role_arn
   tags = {
     "eks_addon" = "ebs-csi"
@@ -253,8 +253,8 @@ module "cluster_autoscaler_role" {
 
 # Createa a kubeconfig file that can  be used by kubectl
 resource "local_file" "kubeconfig" {
-  filename = "${var.terragrunt_dir}/../../kubeconfig.yaml"
-  content = templatefile("${var.terragrunt_dir}/../../../initial-infra/aws/kubeconfig/kubeconfig.tpl", {
+  filename = "${var.terragrunt_dir}/../../../kubeconfig.yaml"
+  content = templatefile("${var.terragrunt_dir}/../../../infrastructure-modules/aws/kubeconfig/kubeconfig.tpl", {
     endpoint                   = module.eks.cluster_endpoint
     certificate_authority_data = module.eks.cluster_certificate_authority_data
     cluster_name               = "${var.environment}-${var.cluster_name}"
