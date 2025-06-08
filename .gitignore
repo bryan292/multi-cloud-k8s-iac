@@ -1,5 +1,7 @@
 .env
-config.yaml
+.env_aws
+.env_azure
+# config.yaml
 kubeconfig.yaml
 
 # Local .terraform directories
