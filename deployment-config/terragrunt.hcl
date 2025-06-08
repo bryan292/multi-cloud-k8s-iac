@@ -15,14 +15,10 @@ inputs = local.provider == "aws" ? {
   kubernetes_version     = local.kubernetes_version
   resource_group_name    = local.azure.resource_group_name
   location               = local.azure.location
-  aks_name               = local.azure.aks_name
+  aks_name               = local.global.cluster_name
   node_count             = local.azure.node_count
   node_vm_size           = local.azure.node_vm_size
   dns_prefix             = local.azure.dns_prefix
-  client_id              = local.azure.client_id
-  client_secret          = local.azure.client_secret
-  subscription_id        = local.azure.subscription_id
-  tenant_id              = local.azure.tenant_id
   # Add other Azure-specific inputs here if needed
 } : {}
 
@@ -42,5 +38,7 @@ remote_state {
     storage_account_name = "tfstate${replace(local.azure.resource_group_name, "-", "")}"
     container_name       = "tfstate"
     key                  = "${local.global.cluster_name}.terraform.tfstate"
+    use_azuread_auth     = false
+    # Ensure the resource group exists before using the backend
   }
 }

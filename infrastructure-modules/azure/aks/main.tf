@@ -6,15 +6,16 @@ provider "azurerm" {
   client_secret   = var.client_secret
 }
 
-resource "azurerm_resource_group" "aks" {
-  name     = var.resource_group_name
-  location = var.location
+# Use the provided resource group for all resources
+locals {
+  aks_resource_group_name = var.resource_group_name
+  aks_resource_group_location = var.location
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
-  name                = var.aks_name
-  location            = azurerm_resource_group.aks.location
-  resource_group_name = azurerm_resource_group.aks.name
+  name                = "${var.environment}-${var.aks_name}"
+  location            = local.aks_resource_group_location
+  resource_group_name = local.aks_resource_group_name
   dns_prefix          = var.dns_prefix
 
   default_node_pool {
@@ -32,7 +33,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
   tags = var.tags
 }
 
-output "kube_config" {
-  value = azurerm_kubernetes_cluster.aks.kube_config_raw
-  sensitive = true
+resource "local_file" "kubeconfig" {
+  filename = "${var.terragrunt_dir}/../../../kubeconfig.yaml"
+  content = templatefile("${var.terragrunt_dir}/../../../infrastructure-modules/azure/kubeconfig/kubeconfig.tpl", {
+    endpoint                   = azurerm_kubernetes_cluster.aks.kube_config[0].host
+    certificate_authority_data = azurerm_kubernetes_cluster.aks.kube_config[0].cluster_ca_certificate
+    client_certificate         = azurerm_kubernetes_cluster.aks.kube_config[0].client_certificate
+    client_key                 = azurerm_kubernetes_cluster.aks.kube_config[0].client_key
+    cluster_name               = azurerm_kubernetes_cluster.aks.name
+  })
 }
+

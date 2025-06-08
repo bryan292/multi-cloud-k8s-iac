@@ -1,0 +1,2 @@
+requirements for azure, resource group and storage account should be manually created
+https://vscode.dev/github/bryan292/multi-cloud-k8s-iac/blob/azure/deployment-config/terragrunt.hcl#L42
