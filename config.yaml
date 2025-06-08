@@ -1,0 +1,33 @@
+global:
+  kubernetes_version: "1.32"
+  cluster_name: demo
+  email: bryan292@outlook.com
+  provider: aws
+  environment: dev
+  common_tags:
+    Environment: "Development"
+    Owner: "Bryan Cerdas"
+    project: "Multi-Cloud-K8s"
+  app_name: node-test-app
+  branch: main
+  app_repo: https://github.com/bryan292/node-test-app
+
+aws:
+  bucket_name: multi-cloud-k8s-iac
+  region: us-east-1
+
+umbrella:
+  custom_app: true
+  cluster_autoscaler: false
+  external_dns: true
+  metrics_server: true
+  cert_manager: true
+  prometheus: true
+  grafana: true
+  loki: true
+  aws_load_balancer_controller: true
+  weave_gitops: true
+
+network:
+  domain: 292s.io
+  hosted_zone_id: Z02937251Z7C2YM5LJJVL

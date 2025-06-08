@@ -1,5 +1,5 @@
 .env
-config.yaml
+# config.yaml
 kubeconfig.yaml
 
 # Local .terraform directories

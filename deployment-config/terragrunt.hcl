@@ -1,7 +1,8 @@
 locals {
   config = yamldecode(file("${get_repo_root()}/config.yaml"))
-  aws_config = try(local.config.aws, {})
-  kubernetes_version = try(local.aws_config.kubernetes_version, local.aws_config.global.kubernetes_version)
+  global = try(local.config.global, {})
+  aws    = try(local.config.aws, {})
+  kubernetes_version = try(local.global.kubernetes_version, null)
 }
 
 inputs = {
@@ -16,9 +17,9 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "multi-cloud-k8s-iac"
-    key            = "~${local.aws_config.global.cluster_name}/${local.aws_config.global.environment}/${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "${local.aws_config.global.environment}-${local.aws_config.global.cluster_name}"
+    bucket         = local.aws.bucket_name
+    key            = "~${local.global.cluster_name}/${local.global.environment}/${path_relative_to_include()}/terraform.tfstate"
+    region         = local.aws.region
+    dynamodb_table = "${local.global.environment}-${local.global.cluster_name}"
   }
 }
