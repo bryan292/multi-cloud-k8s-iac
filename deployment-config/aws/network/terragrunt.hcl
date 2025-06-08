@@ -1,4 +1,11 @@
 # intial-infra\aws\network\terragrunt.hcl
+
+locals {
+  provider = try(include.global.locals.config.global.provider, "aws")
+}
+
+skip = local.provider != "aws"
+
 terraform {
   source = "../../../infrastructure-modules/aws/network"
 }

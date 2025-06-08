@@ -1,4 +1,11 @@
 # intial-infra\aws\eks\terragrunt.hcl
+
+locals {
+  provider = try(include.global.locals.config.global.provider, "aws")
+}
+
+skip = local.provider != "aws"
+
 terraform {
   source = "../../../infrastructure-modules/aws/eks"
 }
@@ -7,15 +14,12 @@ dependency "network" {
   config_path = "../network"
 }
 
-
 include "global" {
   path   = find_in_parent_folders()
   expose = true
 }
 
-
-
-inputs = {
+inputs = local.provider == "aws" ? {
   terragrunt_dir           = get_terragrunt_dir()
   cluster_name             = "${include.global.locals.config.global.cluster_name}-cluster" # Customize with your desired cluster name
   environment              = include.global.locals.config.global.environment
@@ -25,4 +29,4 @@ inputs = {
   cluster_autoscaler       = include.global.locals.config.umbrella.cluster_autoscaler
   tags                     = include.global.locals.config.global.common_tags
   region                   = include.global.locals.config.global.region
-}
+} : {}

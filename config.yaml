@@ -16,6 +16,18 @@ aws:
   bucket_name: multi-cloud-k8s-iac
   region: us-east-1
 
+azure:
+  resource_group_name: "demo-aks-rg"
+  location: "eastus"
+  aks_name: "demo-aks"
+  node_count: 2
+  node_vm_size: "Standard_DS2_v2"
+  dns_prefix: "demoaks"
+  client_id: "<service-principal-client-id>"
+  client_secret: "<service-principal-client-secret>"
+  subscription_id: "<azure-subscription-id>"
+  tenant_id: "<azure-tenant-id>"
+
 umbrella:
   custom_app: true
   cluster_autoscaler: false
