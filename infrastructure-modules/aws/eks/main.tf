@@ -4,6 +4,20 @@ provider "aws" {
   default_tags { tags = var.tags }
 }
 data "aws_partition" "current" {}
+
+locals {
+  node_security_group_additional_rules = {
+    ingress_cluster_prometheus = {
+      description                   = "Cluster API to Prometheus service proxy"
+      type                          = "ingress"
+      protocol                      = "tcp"
+      from_port                     = 9090
+      to_port                       = 9090
+      source_cluster_security_group = true
+    }
+  }
+}
+
 module "eks" {
   source                                   = "terraform-aws-modules/eks/aws"
   version                                  = "20.37.2"
@@ -31,6 +45,7 @@ module "eks" {
   cloudwatch_log_group_retention_in_days = 30
   enable_kms_key_rotation                = true
   cluster_encryption_config              = { resources = ["secrets"] }
+  node_security_group_additional_rules   = local.node_security_group_additional_rules
   cluster_addons = {
     coredns    = { addon_version = var.addon_versions.coredns }
     kube-proxy = { addon_version = var.addon_versions.kube_proxy }

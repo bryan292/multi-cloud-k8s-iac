@@ -26,7 +26,18 @@ variables {
   terragrunt_dir           = "/tmp/eks-test/deployment-config/aws/eks"
   admin_principal_arns     = ["arn:aws:iam::123456789012:role/test"]
 }
-run "secure_plan" { command = plan }
+run "secure_plan" {
+  command = plan
+
+  assert {
+    condition = (
+      local.node_security_group_additional_rules.ingress_cluster_prometheus.from_port == 9090 &&
+      local.node_security_group_additional_rules.ingress_cluster_prometheus.to_port == 9090 &&
+      local.node_security_group_additional_rules.ingress_cluster_prometheus.source_cluster_security_group
+    )
+    error_message = "Prometheus service proxy access must be limited to port 9090 from the cluster security group."
+  }
+}
 run "reject_public_internet" {
   command = plan
   variables { admin_cidrs = ["0.0.0.0/0"] }
