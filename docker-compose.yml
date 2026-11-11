@@ -1,12 +1,11 @@
-version: '3'
 services:
   terraform-container:
-    build:
-      dockerfile: Dockerfile
-    env_file:
-      - .env # Specify the path to your .env file
+    build: .
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:-bryan}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
     volumes:
-      - .:/app # Mount the current directory into /app in the container
-    tty: true # Allocate a pseudo-TTY for an interactive shell
-    entrypoint: [ "/bin/sh", "-c" ]
-    command: /bin/sh # Specify the shell as the command
+      - .:/app
+      - ${HOME}/.aws:/root/.aws:ro
+    stdin_open: true
+    tty: true

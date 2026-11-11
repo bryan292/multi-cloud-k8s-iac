@@ -17,3 +17,7 @@ variable "cluster_name" {
   description = "The name of the EKS cluster."
   type        = string
 }
+variable "kubeconfig_path" {
+  type    = string
+  default = null
+}

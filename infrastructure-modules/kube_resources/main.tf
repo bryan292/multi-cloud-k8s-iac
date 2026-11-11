@@ -1,85 +1,122 @@
 provider "kubernetes" {
-  host                   = var.host
-  cluster_ca_certificate = base64decode(var.cluster_ca_cert)
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    args        = ["eks", "get-token", "--cluster-name", var.cluster_name, "--region", var.region]
-    command     = "aws"
-  }
-}
-resource "kubernetes_manifest" "gitrepository" {
-  manifest = {
-    apiVersion = "source.toolkit.fluxcd.io/v1beta1"
-    kind       = "GitRepository"
-    metadata = {
-      name      = "helm-umbrella-charts"
-      namespace = "flux-system"
-    }
-    spec = {
-      interval = "1m"
-      url      = "https://github.com/bryan292/helm-umbrella-charts"
-      ref = {
-        branch = "main"
-      }
+  host                   = var.kubeconfig_path == null ? var.host : null
+  cluster_ca_certificate = var.kubeconfig_path == null ? base64decode(var.cluster_ca_cert) : null
+  config_path            = var.kubeconfig_path
+
+  dynamic "exec" {
+    for_each = var.kubeconfig_path == null ? [1] : []
+    content {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args        = ["eks", "get-token", "--cluster-name", var.cluster_name, "--region", var.region]
+      command     = "aws"
+      env         = { AWS_PROFILE = var.aws_profile }
     }
   }
 }
 
-resource "kubernetes_manifest" "helmrelease" {
-  manifest = {
-    apiVersion = "helm.toolkit.fluxcd.io/v2beta1"
-    kind       = "HelmRelease"
-    metadata = {
-      name      = "umbrella-chart-release"
-      namespace = "default"
-    }
-    spec = {
-      interval = "1m"
-      chart = {
-        spec = {
-          chart = "./charts" # Adjust the path to where your umbrella chart is located within the repository
-          sourceRef = {
-            kind      = "GitRepository"
-            name      = "helm-umbrella-charts"
-            namespace = "flux-system"
-          }
-
-        }
-      }
-    }
-  }
-}
-
-resource "kubernetes_config_map" "cert_manager_config" {
+resource "kubernetes_storage_class_v1" "gp3" {
+  count = var.create_storage_class ? 1 : 0
   metadata {
-    name      = "remote-config"
-    namespace = "flux-system"
+    name = "gp3"
+  }
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Retain"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+  parameters = {
+    type               = "gp3"
+    encrypted          = "true"
+    tagSpecification_1 = "BackupCluster=${var.cluster_name}"
+  }
+}
+
+# Transfer existing platform objects out of Terraform state without deleting
+# their live resources. Flux assumes ownership from the immutable Git source.
+removed {
+  from = kubernetes_manifest.helm_repository
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = kubernetes_manifest.helm_release
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "kubernetes_manifest" "platform_source" {
+  manifest = {
+    apiVersion = "source.toolkit.fluxcd.io/v1"
+    kind       = "GitRepository"
+    metadata   = { name = "helm-umbrella-charts", namespace = "flux-system" }
+    spec = merge(
+      {
+        interval = "5m"
+        url      = var.platform.repository
+        ref      = { commit = var.platform.commit }
+      },
+      var.platform.secret_name == "" ? {} : { secretRef = { name = var.platform.secret_name } }
+    )
   }
 
-  data = {
-    "eks_cm_role_arn"              = var.eks_cm_role_arn
-    "eks_lb_role_arn"              = var.eks_lb_role_arn
-    "eks_external_dns_role_arn"    = var.eks_external_dns_role_arn
-    "cluster_autoscaler_role_arn"  = var.cluster_autoscaler_role_arn
-    "cluster_name"                 = var.cluster_name
-    "domain"                       = var.domain
-    "hosted_zone_id"               = var.hosted_zone_id
-    "region"                       = var.region
-    "vpc_id"                       = var.vpc_id
-    "environment"                  = var.environment
-    "repository"                   = var.repository
-    "branch"                       = var.branch
-    "app_name"                     = var.app_name
-    "cluster_autoscaler"           = var.cluster_autoscaler
-    "email"                        = var.email
-    "external_dns"                 = var.external_dns
-    "metrics_server"               = var.metrics_server
-    "cert_manager"                 = var.cert_manager
-    "prometheus"                   = var.prometheus
-    "grafana"                      = var.grafana
-    "loki"                         = var.loki
-    "aws_load_balancer_controller" = var.aws_load_balancer_controller
-    "weave_gitops"                 = var.weave_gitops
-    "custom_app"                   = var.custom_app
+  lifecycle {
+    precondition {
+      condition     = can(regex("^[0-9a-f]{40}$", var.platform.commit)) && startswith(var.platform.repository, "https://")
+      error_message = "Platform source requires an HTTPS repository and immutable 40-character commit."
+    }
   }
+}
+
+resource "kubernetes_manifest" "platform" {
+  manifest = {
+    apiVersion = "kustomize.toolkit.fluxcd.io/v1"
+    kind       = "Kustomization"
+    metadata   = { name = "helm-umbrella-charts", namespace = "flux-system" }
+    spec = {
+      interval      = "5m"
+      retryInterval = "1m"
+      path          = "./clusters/${var.environment}"
+      prune         = true
+      wait          = true
+      timeout       = "20m"
+      sourceRef     = { kind = "GitRepository", name = "helm-umbrella-charts" }
+    }
+  }
+  depends_on = [kubernetes_manifest.platform_source, kubernetes_storage_class_v1.gp3]
+}
+
+resource "kubernetes_manifest" "application_source" {
+  count = var.application.enabled ? 1 : 0
+  manifest = {
+    apiVersion = "source.toolkit.fluxcd.io/v1"
+    kind       = "GitRepository"
+    metadata   = { name = "application", namespace = "flux-system" }
+    spec       = merge({ interval = "1m", url = var.application.repository, ref = { commit = var.application.commit } }, var.application.secret_name == "" ? {} : { secretRef = { name = var.application.secret_name } })
+  }
+  lifecycle {
+    precondition {
+      condition     = can(regex("^[0-9a-f]{40}$", var.application.commit)) && startswith(var.application.repository, "https://")
+      error_message = "Application source requires an HTTPS repository and immutable 40-character commit."
+    }
+  }
+}
+
+resource "kubernetes_manifest" "application" {
+  count = var.application.enabled ? 1 : 0
+  manifest = {
+    apiVersion = "kustomize.toolkit.fluxcd.io/v1"
+    kind       = "Kustomization"
+    metadata   = { name = "application", namespace = "flux-system" }
+    spec = {
+      interval  = "5m"
+      path      = var.application.path
+      prune     = true
+      wait      = true
+      timeout   = "10m"
+      sourceRef = { kind = "GitRepository", name = "application" }
+    }
+  }
+  depends_on = [kubernetes_manifest.application_source, kubernetes_manifest.platform]
 }

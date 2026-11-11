@@ -1,43 +1,30 @@
-# Use a lightweight Linux distribution as the base image
-FROM alpine:3.14
-
-USER root
-
-# Set the Terragrunt version
-ARG TERRAGRUNT_VERSION="0.54.16"
-
-# Install necessary packages: Terraform, Helm, AWS CLI, and kubectl dependencies
-RUN apk add --update --no-cache curl unzip python3 py3-pip bash git && \
-    pip3 install --upgrade pip && \
-    pip3 install awscli
-
-# Install Terraform
-RUN curl -LO "https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip" && \
-    unzip terraform_1.6.6_linux_amd64.zip -d /usr/local/bin
-
-# Install Terragrunt
-RUN wget https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 -O /bin/terragrunt && \
-    chmod +x /bin/terragrunt
-
-# Install Helm
-RUN curl -LO "https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz" && \
-    tar -zxvf helm-v3.14.0-linux-amd64.tar.gz && \
-    mv linux-amd64/helm /usr/local/bin/helm
-
-# Install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/
-
-# Clean up
-RUN rm -rf terraform_1.6.6_linux_amd64.zip linux-amd64 helm-v3.8.0-linux-amd64.tar.gz
-
-# Set the working directory within the container
+FROM alpine:3.22
+ARG TARGETARCH
+ARG TERRAFORM_VERSION=1.15.1
+ARG TERRAGRUNT_VERSION=1.1.1
+ARG HELM_VERSION=3.19.0
+ARG KUBECTL_VERSION=1.35.0
+RUN apk add --no-cache bash curl unzip git aws-cli python3 py3-yaml ca-certificates
+RUN set -eu; arch="${TARGETARCH:-$(apk --print-arch)}"; \
+    case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac; \
+    mkdir /tmp/tools; cd /tmp/tools; \
+    curl -fsSLO "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${arch}.zip"; \
+    curl -fsSLO "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"; \
+    grep "terraform_${TERRAFORM_VERSION}_linux_${arch}.zip$" "terraform_${TERRAFORM_VERSION}_SHA256SUMS" | sha256sum -c -; \
+    unzip "terraform_${TERRAFORM_VERSION}_linux_${arch}.zip" terraform -d /usr/local/bin; \
+    curl -fsSLO "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_${arch}"; \
+    curl -fsSLO "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/SHA256SUMS"; \
+    grep "terragrunt_linux_${arch}$" SHA256SUMS | sha256sum -c -; \
+    mv "terragrunt_linux_${arch}" /usr/local/bin/terragrunt; \
+    curl -fsSLO "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${arch}.tar.gz"; \
+    curl -fsSLO "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${arch}.tar.gz.sha256sum"; \
+    sha256sum -c "helm-v${HELM_VERSION}-linux-${arch}.tar.gz.sha256sum"; \
+    tar -xzf "helm-v${HELM_VERSION}-linux-${arch}.tar.gz"; mv "linux-${arch}/helm" /usr/local/bin/helm; \
+    curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" -o kubectl; \
+    curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}/kubectl.sha256" -o kubectl.sha256; \
+    printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum -c -; \
+    mv kubectl /usr/local/bin/kubectl; chmod +x /usr/local/bin/terragrunt /usr/local/bin/kubectl; \
+    rm -rf /tmp/tools
 WORKDIR /app
-
-# Copy your Terraform code and other necessary files into the container
-COPY . /app
-
-# Set KUBECONFIG environment variable to point to the kubeconfig file
-ENV KUBECONFIG /app/env/kubeconfig.yaml
-
+ENV KUBECONFIG=/app/kubeconfig.yaml
+CMD ["bash"]

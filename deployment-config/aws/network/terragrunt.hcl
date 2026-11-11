@@ -1,18 +1,16 @@
-# intial-infra\aws\network\terragrunt.hcl
-terraform {
-  source = "../../../infrastructure-modules/aws/network"
-}
-
+terraform { source = "../../../infrastructure-modules/aws/network" }
 include "global" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
   expose = true
 }
-
 inputs = {
-  vpc_name     = "${include.global.locals.config.global.cluster_name}-vpc" # Customize the name for the VPC
-  environment  = include.global.locals.config.global.environment
-  cluster_name = "${include.global.locals.config.global.cluster_name}-cluster"
-  tags         = include.global.locals.config.global.common_tags
-  domain       = include.global.locals.config.network.domain
-  # Add more variables as needed for your project
+  vpc_name           = "${include.global.locals.config.global.cluster_name}-vpc"
+  cluster_name       = "${include.global.locals.config.global.cluster_name}-cluster"
+  environment        = include.global.locals.config.global.environment
+  tags               = include.global.locals.config.global.common_tags
+  region             = include.global.locals.config.global.region
+  account_id         = include.global.locals.config.global.account_id
+  vpc_cidr           = include.global.locals.config.network.vpc_cidr
+  az_count           = include.global.locals.config.network.az_count
+  single_nat_gateway = include.global.locals.config.network.single_nat_gateway
 }
