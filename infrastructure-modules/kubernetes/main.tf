@@ -1,13 +1,6 @@
 provider "helm" {
   kubernetes = {
-    host                   = var.kubeconfig_path == null ? var.host : null
-    cluster_ca_certificate = var.kubeconfig_path == null ? base64decode(var.cluster_ca_cert) : null
-    config_path            = var.kubeconfig_path
-    exec = var.kubeconfig_path == null ? {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      args        = ["eks", "get-token", "--cluster-name", var.cluster_name, "--region", var.region]
-      command     = "aws"
-    } : null
+    config_path = var.kubeconfig_path
   }
 }
 resource "helm_release" "flux2" {
@@ -19,6 +12,9 @@ resource "helm_release" "flux2" {
   version          = "2.20.0"
   atomic           = true
   cleanup_on_fail  = true
-  wait             = true
-  timeout          = 600
+  # AKS can expose aggregated APIs whose OpenAPI discovery blocks Helm's
+  # client-side validation. Kubernetes still validates every submitted object.
+  disable_openapi_validation = true
+  wait                       = true
+  timeout                    = 600
 }

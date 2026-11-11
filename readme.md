@@ -1,85 +1,88 @@
-# AWS EKS infrastructure
+# Multi-cloud Kubernetes IaC
 
-Terraform + Terragrunt deploy an AWS VPC, EKS, managed nodes, EBS storage, Flux and platform controllers. AWS is the implemented cloud provider; the repository name does not imply working Azure/GCP modules.
+Terraform, Terragrunt and Flux deploy the same Kubernetes platform on either AWS EKS or Azure AKS. Select the cloud with `global.provider` in `config.yaml`; the deployment command does not change.
+
+## Managed stack
+
+| Layer | AWS | Azure |
+|---|---|---|
+| Remote state | Encrypted/versioned S3 with native locking | Versioned GRS Blob Storage with Microsoft Entra authentication |
+| Network | Multi-AZ VPC, private workers, configurable NAT | VNet, node subnet, Azure CNI Overlay |
+| Cluster | EKS, managed nodes, IRSA, managed add-ons | AKS, Azure RBAC, Workload Identity, Cilium, managed add-ons |
+| Platform | Flux, cert-manager, metrics-server, monitoring, AWS controllers | Flux, cert-manager and monitoring; AKS supplies metrics, load balancing and autoscaling |
+
+Flux reads a pinned umbrella-repository commit and selects `clusters/<environment>/<provider>`. Monitoring uses `gp3` on EKS and `managed-csi` on AKS.
 
 ## Requirements
 
-- Docker with Compose, or Terraform 1.15.1, Terragrunt 1.1.1, Helm 3.19.0, kubectl 1.35.x, AWS CLI and Python 3 with PyYAML.
-- An AWS IAM user or role profile with infrastructure deployment permissions. Root credentials are rejected by preflight. Temporary credentials / SSO are preferred.
-- An existing public Route53 hosted zone when DNS or certificates are enabled.
-- A runner with network access to the EKS endpoint. The default endpoint is private; for local execution configure a trusted public `/32`.
+Common tools: Terraform 1.15.1, Terragrunt 1.1.1, Helm 3.x, kubectl compatible with Kubernetes 1.35, Python 3 and PyYAML.
 
-The container supports ARM64 and AMD64, verifies tool checksums and mounts `~/.aws` read-only. It does not bake source files or credentials into the image.
+Install the small Python dependency when running outside the provided container:
 
 ```bash
-cp .env_sample .env
-cp config.yaml_example config.yaml
-# Edit config.yaml: account, globally unique bucket, admin principal/CIDR, DNS, capacity.
-docker compose build
-docker compose run --rm terraform-container
+python3 -m pip install -r requirements.txt
 ```
 
-Set `AWS_PROFILE` to the deployment profile (Compose defaults to `bryan`). Both the AWS providers and state backend enforce the configured account ID. `config.yaml`, plans, kubeconfig and state files are ignored by Git.
+- AWS: AWS CLI and an IAM user or assumed-role profile. Root credentials are rejected.
+- Azure: Azure CLI and `kubelogin`. Run `az login`, select the configured subscription, and use an identity allowed to create state resources, networking, role assignments and AKS.
+- Publish `platform.commit` to the remote umbrella repository before deployment.
 
-The generated kubeconfig embeds `global.aws_profile` in its exec environment. This lets desktop clients such as Lens request EKS tokens with the intended identity even when they do not inherit `AWS_PROFILE` from your terminal.
+The included container supports validation and AWS workflows. Run Azure deployment on a host where Azure CLI and its authenticated token cache are available.
 
-## Deployment
+## Configuration
 
-From the repository root:
+```bash
+cp config.yaml_example config.yaml
+```
+
+Set `global.provider` to `aws` or `azure`, complete that provider's block, and set the platform repository plus a published 40-character commit. Keep both provider blocks so switching clouds is only a configuration and credential change.
+
+Security defaults include:
+
+- Kubernetes API access is never open to `0.0.0.0/0`; use trusted `/32` values or private access.
+- Both clouds start with at least two nodes and autoscaling.
+- EKS workers are private and use IMDSv2 and encrypted storage.
+- AKS disables local accounts and run-command and enables Azure RBAC, OIDC, Workload Identity and Cilium.
+- Configuration, generated kubeconfig, plans and state are ignored by Git. Never store secrets in either repository.
+
+## Bootstrap state
+
+Authenticate to the selected provider, then use the same commands:
 
 ```bash
 python3 scripts/preflight.py
 python3 scripts/bootstrap.py init
 python3 scripts/bootstrap.py plan -out=bootstrap.tfplan
-# Review the plan, then create the protected state bucket.
 python3 scripts/bootstrap.py apply bootstrap.tfplan
 ```
 
-Bootstrap manages S3 versioning, encryption, public access blocking and a TLS-only policy. Its local state is in `bootstrap/terraform.tfstate`: back it up securely. The bucket has `prevent_destroy` and is intentionally independent of the cluster lifecycle. Import an existing bucket and its companion resources instead of trying to recreate it.
+Bootstrap state remains local in `bootstrap/terraform.tfstate` or `bootstrap/azure/terraform.tfstate`; back it up securely. State storage has `prevent_destroy` and is retained during cluster teardown.
 
-Deploy in order; each apply uses a saved, reviewed plan:
+Azure state uses Entra data-plane authorization with shared keys disabled. AWS state enforces the configured account and enables encryption, versioning, public-access blocking and TLS-only access.
+
+## Deploy and verify
+
+The provider-neutral orchestrator derives the stages from `config.yaml`:
 
 ```bash
-cd deployment-config/aws/network
-terragrunt run -- plan -out=network.tfplan
-terragrunt run -- apply network.tfplan
-cd ../eks
-terragrunt run -- plan -out=eks.tfplan
-terragrunt run -- apply eks.tfplan
-cd ../../kubernetes
-terragrunt run -- plan -out=flux.tfplan
-terragrunt run -- apply flux.tfplan
-cd ../kube_resources
-terragrunt run -- plan -out=resources.tfplan
-terragrunt run -- apply resources.tfplan
-cd ../..
-export KUBECONFIG="$PWD/kubeconfig.yaml"
-python3 scripts/verify-cluster.py
+python3 scripts/deploy.py deploy
+python3 scripts/deploy.py verify
 ```
 
-The separate Flux apply installs its CRDs before Terraform plans `kubernetes_manifest` resources. On a fresh account, do not attempt one monolithic plan across all stages. A successful final Terraform apply means manifests were accepted; `verify-cluster.py` also waits for Flux reconciliation and workload readiness.
+Every stage applies a saved plan. Preview established stages without applying with:
 
-## Configuration and defaults
+```bash
+python3 scripts/deploy.py plan
+```
 
-| Area | Configuration / behavior |
-|---|---|
-| State | `global.bucket_name`, `state_region`; S3 native locking (`use_lockfile`), encryption and versioning. Existing `~cluster/environment/unit` key structure is preserved. |
-| Network | `network.vpc_cidr`, two or three AZs, private workers, isolated control-plane subnets, VPC flow logs retained 30 days. NAT per AZ by default; single NAT is an explicit cost/availability tradeoff. |
-| Access | `eks.admin_principal_arns` contains permanent IAM user/role ARNs, including the deployment identity. No implicit cluster-creator admin. `admin_cidrs: []` means private-only endpoint; never use `/0`. |
-| Nodes | AL2023, IMDSv2 required, encrypted gp3 root disks, two On-Demand nodes by default, configurable instance types and scaling. Spot remains an opt-in tradeoff. |
-| Add-ons | Kubernetes 1.35 baseline; CoreDNS, kube-proxy, VPC CNI and EBS CSI. `eks.addon_versions` can pin compatible versions listed by preflight; empty values use AWS's creation-time defaults. |
-| Storage | Explicit `gp3` StorageClass, encryption, `WaitForFirstConsumer`, expansion, `Retain`. Select `storageClassName: gp3` in workloads. |
-| Backups | Daily AWS Backup snapshots of this cluster's tagged EBS volumes, 30-day retention. This does not back up Kubernetes objects or replace application-consistent database backups. |
-| Platform | Terraform bootstraps an immutable `platform.repository` commit. Flux then reconciles `clusters/<environment>` from the umbrella repository, which owns chart pins, values, dependencies and environment composition. |
-| Monitoring | Prometheus, Alertmanager and private Grafana with persistent volumes. EKS-inaccessible control-plane scrape targets are disabled. Configure alert receivers in the umbrella environment before production. |
-| DNS | ExternalDNS is restricted to the hosted zone and domain, uses a cluster-specific TXT owner, and defaults to `upsert-only`. |
-| Certificates | cert-manager and scoped Route53 IAM permissions are installed. Create an ACME ClusterIssuer with your email and intended staging/production endpoint before requesting public certificates. |
-| Logs | Optional Loki single-instance filesystem configuration for development; use S3, appropriate replication and a log collector for production. |
-| Application | The umbrella repository composes environment applications. An additional application repository can optionally be reconciled from an HTTPS URL pinned to a 40-character commit. Private Git authentication uses an existing Secret. |
+Stage order is:
 
-Do not put secrets in either repository. Use existing Kubernetes Secrets or SOPS-encrypted manifests. IAM role ARNs and other environment settings belong in the umbrella environment's `cluster-settings` ConfigMap.
+- AWS: `aws/network` → `aws/eks` → `kubernetes` → `kube_resources`.
+- Azure: `azure/aks` → `kubernetes` → `kube_resources`.
 
-Grafana and monitoring endpoints are not public. Use `kubectl port-forward` and retrieve credentials from the generated Kubernetes Secret without committing or logging them. Network policies and Pod Security rules for application namespaces must be designed for the applications' actual traffic and permissions.
+The generated `kubeconfig.yaml` works with kubectl and desktop clients. EKS embeds the configured AWS profile. AKS uses `kubelogin -l azurecli`, so Lens must be able to access a valid Azure CLI login.
+
+Flux CRDs are installed before Terraform creates Flux custom resources. The umbrella repository owns chart versions, provider overlays and environment composition.
 
 ## Validation
 
@@ -87,31 +90,27 @@ Grafana and monitoring endpoints are not public. Use `kubectl port-forward` and 
 scripts/validate.sh
 python3 scripts/preflight.py --offline --config config.yaml_example
 python3 scripts/preflight.py
+python3 scripts/deploy.py verify
 ```
 
-Validation covers formatting, provider schemas, mocked Terraform plans (no AWS writes), invalid access/scaling inputs and example configuration. The umbrella repository independently builds every Kustomize root and renders every pinned chart. CI runs both repositories' checks without AWS credentials. Lock files and module/provider versions are tracked; upgrades must update pins, lock files and tests together.
+Static checks cover formatting, schemas, Terraform tests, security constraints and both configuration variants. The umbrella repository independently builds both Kustomize overlays and renders every chart.
 
-For live checks, `scripts/verify-cluster.py` verifies ready nodes, active EKS add-ons, current HelmRelease reconciliation, and metrics. `scripts/smoke-storage.sh` creates an isolated PVC/pod, writes data, recreates the pod and checks persistence; it deletes its own PVC and EBS volume afterward. `scripts/smoke-ingress.py` verifies ALB HTTP routing, a Route53 alias from ExternalDNS and self-signed certificate issuance, then removes its unique test namespace, load balancer and DNS records. It does not prove public ACME issuance. Run `TEST_BACKUP=1 scripts/smoke-storage.sh` to additionally create an AWS Backup recovery point, restore a new EBS volume from its snapshot and verify the original data; only the test recovery point and test volumes are removed afterward.
+Live verification checks ready nodes, cloud control-plane/add-on health, Flux reconciliation and metrics. AWS-only smoke tests additionally cover EBS persistence/backups and ALB/Route53/cert-manager behavior. Azure retains AKS's managed metrics-server and uses `managed-csi`.
 
-## Upgrade and migration
+Monitoring endpoints are private. Use `kubectl port-forward` and retrieve credentials from Kubernetes Secrets without committing or logging them. Configure production alert receivers and application-aware backups separately.
 
-1. Back up Terraform state and application data. Run preflight with the target version and pin compatible EKS add-ons.
-2. Upgrade supported EKS minor versions sequentially. Update kubectl and the autoscaler chart/image together; the current preflight intentionally rejects an autoscaler/Kubernetes mismatch.
-3. Review saved plans for replacements, node rollouts and IAM access changes. Ensure the deployment principal remains an EKS administrator.
-4. Apply AWS stages, then Flux, then platform manifests. Confirm reconciliation and run live smoke tests.
+## Teardown
 
-Existing deployments use a non-destructive ownership migration: Terraform removes its HelmRepository and HelmRelease addresses from state with `destroy = false`, then Flux reconciles the same objects from the immutable umbrella commit. Review the plan and confirm it contains forget actions rather than deletions. Monitoring volumes and namespaces must remain intact. The AMI/capacity changes roll nodes. Provider major versions are deliberately constrained to the tested EKS v20/AWS v5 combination rather than silently changing the existing state schema.
+Destroy cluster stages in reverse order while retaining state storage:
 
-S3 native locking replaces the legacy DynamoDB lock configuration. Stop old runners before migrating and ensure every runner uses the new backend settings. Moving from `env` to `deployment-config` does not itself justify creating a new state: verify the bucket and exact key before init; use `terraform init -migrate-state` for intentional backend moves.
+```bash
+python3 scripts/deploy.py destroy
+```
 
-## Restore and teardown
+This is destructive and applies saved destroy plans. Remove application LoadBalancer/Ingress resources while controllers and nodes still exist. Review retained EBS/PV, backup and DNS resources on AWS, and workload-created disks and public IPs on Azure.
 
-Recover Terraform state from an S3 object version only after stopping all writers; preserve the current version first. Recover EBS data through AWS Backup into the intended availability zone, then bind a static CSI PV/PVC to the restored volume and validate application data. Recreate Kubernetes objects from Git. Perform restore drills; a scheduled backup alone is not proof of recoverability.
+## Upgrades
 
-For teardown, first remove application Ingress/LoadBalancer Services and wait for AWS load balancer cleanup. Delete Flux-managed applications and releases while controllers and nodes still run. Destroy in reverse order: `kube_resources`, `kubernetes`, `aws/eks`, `aws/network`. Use a reviewed `terragrunt run -- plan -destroy -out=destroy.tfplan` and apply that plan in each directory.
+Back up state and application data, upgrade one supported Kubernetes minor at a time, and update chart/provider locks together. Run preflight, review plans for replacements or node rollouts, deploy, and verify Flux and workloads. Migrate state deliberately; never casually repoint an existing key.
 
-Retained PVs/EBS volumes, nonempty backup vaults and DNS records from `upsert-only` need explicit review. Do not delete backups to force teardown. Keep the state bucket and bootstrap state. EKS, NAT gateways, nodes, storage, backups and CloudWatch incur charges while deployed.
-
-## Validation record
-
-See [the AWS validation report](docs/aws-validation.md) for live test results and remaining environment-specific configuration. The load balancer IAM policy is vendored from [upstream v3.6.2](https://github.com/kubernetes-sigs/aws-load-balancer-controller/blob/v3.6.2/docs/install/iam_policy.json) and must be updated together with its chart pin.
+See [AWS validation](docs/aws-validation.md) and [Azure validation](docs/azure-validation.md).

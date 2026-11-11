@@ -1,31 +1,22 @@
-variable "region" {
-  type = string
-}
-
-variable "aws_profile" {
-  description = "AWS CLI profile used by the Kubernetes provider exec credential plugin."
-  type        = string
-}
-
-variable "host" {
-  type = string
-}
-
-variable "cluster_ca_cert" {
-  type = string
-}
-
-variable "cluster_name" {
-  type = string
-}
-
 variable "environment" {
   type = string
 }
 
 variable "kubeconfig_path" {
-  type    = string
-  default = null
+  type = string
+}
+
+variable "provider_name" {
+  type = string
+  validation {
+    condition     = contains(["aws", "azure"], var.provider_name)
+    error_message = "provider_name must be aws or azure."
+  }
+}
+
+variable "cluster_settings" {
+  description = "Non-secret values injected into Flux substitutions."
+  type        = map(string)
 }
 
 variable "platform" {
@@ -34,6 +25,7 @@ variable "platform" {
     repository  = string
     commit      = string
     secret_name = optional(string, "")
+    path        = string
   })
 }
 

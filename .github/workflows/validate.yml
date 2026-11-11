@@ -1,4 +1,4 @@
-name: Validate AWS infrastructure
+name: Validate multi-cloud infrastructure
 on:
   pull_request:
   push:
@@ -13,5 +13,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build pinned tooling (checksums verified)
         run: docker build -t aws-iac-tools .
-      - name: Validate modules and mocked plans without AWS credentials
+      - name: Validate modules and mocked plans without cloud credentials
         run: docker run --rm -v "$GITHUB_WORKSPACE:/app" aws-iac-tools scripts/validate.sh

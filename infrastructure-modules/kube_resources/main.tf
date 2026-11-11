@@ -1,17 +1,5 @@
 provider "kubernetes" {
-  host                   = var.kubeconfig_path == null ? var.host : null
-  cluster_ca_certificate = var.kubeconfig_path == null ? base64decode(var.cluster_ca_cert) : null
-  config_path            = var.kubeconfig_path
-
-  dynamic "exec" {
-    for_each = var.kubeconfig_path == null ? [1] : []
-    content {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      args        = ["eks", "get-token", "--cluster-name", var.cluster_name, "--region", var.region]
-      command     = "aws"
-      env         = { AWS_PROFILE = var.aws_profile }
-    }
-  }
+  config_path = var.kubeconfig_path
 }
 
 resource "kubernetes_storage_class_v1" "gp3" {
@@ -26,8 +14,16 @@ resource "kubernetes_storage_class_v1" "gp3" {
   parameters = {
     type               = "gp3"
     encrypted          = "true"
-    tagSpecification_1 = "BackupCluster=${var.cluster_name}"
+    tagSpecification_1 = "BackupCluster=${var.cluster_settings["cluster_name"]}"
   }
+}
+
+resource "kubernetes_config_map_v1" "cluster_settings" {
+  metadata {
+    name      = "cluster-settings"
+    namespace = "flux-system"
+  }
+  data = var.cluster_settings
 }
 
 # Transfer existing platform objects out of Terraform state without deleting
@@ -77,14 +73,18 @@ resource "kubernetes_manifest" "platform" {
     spec = {
       interval      = "5m"
       retryInterval = "1m"
-      path          = "./clusters/${var.environment}"
+      path          = var.platform.path
       prune         = true
       wait          = true
       timeout       = "20m"
       sourceRef     = { kind = "GitRepository", name = "helm-umbrella-charts" }
     }
   }
-  depends_on = [kubernetes_manifest.platform_source, kubernetes_storage_class_v1.gp3]
+  depends_on = [
+    kubernetes_manifest.platform_source,
+    kubernetes_storage_class_v1.gp3,
+    kubernetes_config_map_v1.cluster_settings,
+  ]
 }
 
 resource "kubernetes_manifest" "application_source" {

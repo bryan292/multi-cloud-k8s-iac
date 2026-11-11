@@ -1,15 +1,19 @@
 mock_provider "kubernetes" {}
 
 variables {
-  aws_profile     = "test"
-  region          = "us-east-1"
-  host            = "https://example.invalid"
-  cluster_ca_cert = "dGVzdA=="
-  cluster_name    = "test-cluster"
+  kubeconfig_path = "/tmp/kubeconfig"
+  provider_name   = "aws"
   environment     = "dev"
+  cluster_settings = {
+    provider           = "aws"
+    cluster_name       = "test-cluster"
+    kubernetes_version = "1.35"
+    storage_class      = "gp3"
+  }
   platform = {
     repository = "https://github.com/example/helm-umbrella-charts.git"
     commit     = "0123456789abcdef0123456789abcdef01234567"
+    path       = "./clusters/dev/aws"
   }
 }
 
@@ -22,7 +26,7 @@ run "immutable_platform_source" {
   }
 
   assert {
-    condition     = kubernetes_manifest.platform.manifest.spec.path == "./clusters/dev"
+    condition     = kubernetes_manifest.platform.manifest.spec.path == "./clusters/dev/aws"
     error_message = "The platform Kustomization must select the configured environment."
   }
 
@@ -39,6 +43,7 @@ run "reject_mutable_platform_ref" {
     platform = {
       repository = "https://github.com/example/helm-umbrella-charts.git"
       commit     = "main"
+      path       = "./clusters/dev/aws"
     }
   }
 
