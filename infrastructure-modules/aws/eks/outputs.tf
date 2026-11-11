@@ -3,6 +3,16 @@ output "eks_cluster_name" {
   value       = module.eks.cluster_name
 }
 
+output "cluster_name" {
+  description = "Provider-neutral cluster name consumed by shared deployment stages."
+  value       = module.eks.cluster_name
+}
+
+output "vpc_id" {
+  description = "VPC used by EKS."
+  value       = var.vpc_id
+}
+
 output "eks_cluster_endpoint" {
   description = "The endpoint of the EKS cluster."
   value       = module.eks.cluster_endpoint

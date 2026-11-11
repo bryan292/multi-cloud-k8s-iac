@@ -1,16 +1,37 @@
 global:
-  account_id: "123456789012" # Replace; providers and backend reject other accounts.
-  aws_profile: my-aws-profile # Used by kubectl and desktop clients such as Lens.
+  provider: aws # aws or azure; this selects the infrastructure and state backend.
   kubernetes_version: "1.35"
   cluster_name: demo
-  bucket_name: replace-with-a-globally-unique-state-bucket
-  region: us-east-1
-  state_region: us-east-1
   environment: dev
   common_tags:
     Environment: dev
     Project: multi-cloud-k8s-iac
     ManagedBy: Terraform
+aws:
+  account_id: "123456789012" # Providers and backend reject other accounts.
+  profile: my-aws-profile # Used by kubectl and desktop clients such as Lens.
+  bucket_name: replace-with-a-globally-unique-state-bucket
+  region: us-east-1
+  state_region: us-east-1
+azure:
+  subscription_id: "00000000-0000-0000-0000-000000000000"
+  tenant_id: "00000000-0000-0000-0000-000000000000"
+  location: eastus
+  resource_group_name: dev-demo-aks
+  state:
+    resource_group_name: multi-cloud-k8s-iac-tfstate
+    storage_account_name: tfstateexample123
+    container_name: tfstate
+  network:
+    vnet_cidr: "10.70.0.0/16"
+    subnet_cidr: "10.70.0.0/20"
+    api_server_authorized_ip_ranges: [] # Add trusted public /32s; empty uses a private endpoint.
+  node_pool:
+    vm_size: Standard_D2s_v3
+    zones: ["1", "2"]
+    min: 2
+    desired: 2
+    max: 4
 network:
   vpc_cidr: "10.0.0.0/16"
   az_count: 3
@@ -38,6 +59,8 @@ platform:
   repository: "https://github.com/example/helm-umbrella-charts.git"
   commit: "0123456789abcdef0123456789abcdef01234567" # Pin a published commit containing clusters/<environment>.
   secret_name: "" # Optional existing Secret in flux-system for a private repository.
+  path: "" # Empty selects clusters/<environment>/<provider>.
+  acme_email: admin@example.com
 application:
   enabled: false
   repository: ""
