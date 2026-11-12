@@ -2,7 +2,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export KUBECONFIG="${KUBECONFIG:-$PWD/kubeconfig.yaml}"
-export AWS_DEFAULT_REGION="$(python3 -c 'import yaml; print(yaml.safe_load(open("config.yaml"))["global"]["region"])')"
+provider="$(python3 -c 'import os; from scripts.config import load_config; print(load_config(os.environ.get("IAC_CONFIG", "config.yaml"))["global"]["provider"])')"
+if [[ "$provider" == aws ]]; then
+  export AWS_DEFAULT_REGION="$(python3 -c 'import os; from scripts.config import load_config; print(load_config(os.environ.get("IAC_CONFIG", "config.yaml"))["aws"]["region"])')"
+  export AWS_PROFILE="$(python3 -c 'import os; from scripts.config import load_config; print(load_config(os.environ.get("IAC_CONFIG", "config.yaml"))["aws"]["profile"])')"
+  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+  storage_class=gp3
+else
+  storage_class=managed-csi
+fi
 namespace="iac-storage-smoke-$(date +%s)"
 volume_id=""
 cleanup() {
@@ -11,22 +19,22 @@ cleanup() {
     volume_id=$(kubectl get pv "$pv" -o jsonpath='{.spec.csi.volumeHandle}' 2>/dev/null || true)
   fi
   kubectl delete namespace "$namespace" --wait=true --timeout=120s || return
-  if [[ -n "$volume_id" ]]; then
-    kubectl delete pv "$pv" --wait=true --timeout=60s
+  if [[ -n "$volume_id" && "$provider" == aws ]]; then
+    kubectl delete pv "$pv" --ignore-not-found --wait=true --timeout=60s
     aws ec2 wait volume-available --volume-ids "$volume_id"
     aws ec2 delete-volume --volume-id "$volume_id"
   fi
 }
 trap cleanup EXIT
 kubectl create namespace "$namespace"
-kubectl apply -n "$namespace" -f - <<'YAML'
+kubectl apply -n "$namespace" -f - <<YAML
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: smoke
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: gp3
+  storageClassName: ${storage_class}
   resources:
     requests:
       storage: 1Gi
@@ -70,10 +78,24 @@ volume_id=$(kubectl get pv "$pv" -o jsonpath='{.spec.csi.volumeHandle}')
 kubectl exec -n "$namespace" smoke -- sh -c 'echo persistence-ok > /data/proof; sync'
 kubectl delete pod smoke -n "$namespace" --wait=true
 create_pod
-[[ "$(kubectl exec -n "$namespace" smoke -- cat /data/proof)" == "persistence-ok" ]]
-[[ "$(aws ec2 describe-volumes --volume-ids "$volume_id" --query 'Volumes[0].Encrypted' --output text)" == "True" ]]
-echo "PASS encrypted EBS volume survived pod recreation"
+[[ "$(kubectl exec -n "$namespace" smoke -- cat /data/proof)" == "persistence-ok" ]] || {
+  echo "FAIL volume data did not survive pod recreation" >&2
+  exit 1
+}
+if [[ "$provider" == aws ]]; then
+  [[ "$(aws ec2 describe-volumes --volume-ids "$volume_id" --query 'Volumes[0].Encrypted' --output text)" == "True" ]] || {
+    echo "FAIL EBS volume is not encrypted" >&2
+    exit 1
+  }
+else
+  encryption="$(az disk show --ids "$volume_id" --query encryption.type -o tsv)"
+  [[ "$encryption" == EncryptionAtRestWithPlatformKey || "$encryption" == EncryptionAtRestWithCustomerKey || "$encryption" == EncryptionAtRestWithPlatformAndCustomerKeys ]] || {
+    echo "FAIL Azure disk encryption is not enabled" >&2
+    exit 1
+  }
+fi
+echo "PASS encrypted $provider volume survived pod recreation"
 
-if [[ "${TEST_BACKUP:-0}" == "1" ]]; then
+if [[ "${TEST_BACKUP:-0}" == "1" && "$provider" == aws ]]; then
   python3 scripts/smoke-backup.py "$namespace" "$volume_id"
 fi

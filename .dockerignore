@@ -10,3 +10,9 @@ kubeconfig.yaml
 **/*.tfplan
 .test-artifacts
 .plan-artifacts
+.sdd
+.deployment-targets
+config*.yaml.bak
+__pycache__
+
+.iac/

@@ -2,9 +2,8 @@ import importlib.util
 import unittest
 
 
-spec = importlib.util.spec_from_file_location("deploy", "scripts/deploy.py")
-deploy = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(deploy)
+from scripts import deploy as deploy
+
 
 
 class DeploymentStageTests(unittest.TestCase):

@@ -1,0 +1,61 @@
+# Replace example identities, repository and commit before deploying.
+schema_version: 1
+global:
+  provider: aws
+  kubernetes_version: '1.35'
+  cluster_name: demo
+  environment: dev
+  common_tags:
+    Environment: dev
+    Project: multi-cloud-k8s-iac
+    ManagedBy: Terraform
+aws:
+  account_id: '123456789012'
+  profile: my-aws-profile
+  bucket_name: replace-with-a-globally-unique-state-bucket
+  region: us-east-1
+  state_region: us-east-1
+network:
+  vpc_cidr: 10.0.0.0/16
+  az_count: 3
+  single_nat_gateway: false
+  domain: example.com
+  hosted_zone_id: REPLACE_WITH_EXISTING_PUBLIC_ZONE
+eks:
+  admin_cidrs: []
+  admin_principal_arns:
+  - arn:aws:iam::123456789012:role/DeploymentRole
+  node_instance_types:
+  - m6i.large
+  - m6a.large
+  - m5.large
+  node_capacity_type: ON_DEMAND
+  node_scaling:
+    min: 2
+    desired: 2
+    max: 6
+  addon_versions: {}
+umbrella:
+  metrics_server: true
+  aws_load_balancer_controller: true
+  cert_manager: true
+  external_dns: true
+  cluster_autoscaler: true
+  monitoring: true
+  loki: false
+platform:
+  repository: https://github.com/example/helm-umbrella-charts.git
+  commit: 0123456789abcdef0123456789abcdef01234567
+  secret_name: ''
+  path: ''
+  acme_email: admin@example.com
+application:
+  enabled: false
+  repository: ''
+  commit: ''
+  path: ./
+  secret_name: ''
+
+# Optional application identities (no identities are created when omitted).
+# See docs/workload-identity.md for scoped permissions and GitOps bindings.
+# workload_identities: {}

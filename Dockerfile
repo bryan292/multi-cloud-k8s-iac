@@ -4,7 +4,10 @@ ARG TERRAFORM_VERSION=1.15.1
 ARG TERRAGRUNT_VERSION=1.1.1
 ARG HELM_VERSION=3.19.0
 ARG KUBECTL_VERSION=1.35.0
-RUN apk add --no-cache bash curl unzip git aws-cli python3 py3-yaml ca-certificates
+RUN apk add --no-cache bash curl unzip git aws-cli python3 py3-pip gnupg ca-certificates
+COPY requirements.txt /tmp/requirements.txt
+RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
+ENV PATH="/opt/venv/bin:$PATH"
 RUN set -eu; arch="${TARGETARCH:-$(apk --print-arch)}"; \
     case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac; \
     mkdir /tmp/tools; cd /tmp/tools; \
@@ -25,6 +28,8 @@ RUN set -eu; arch="${TARGETARCH:-$(apk --print-arch)}"; \
     printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum -c -; \
     mv kubectl /usr/local/bin/kubectl; chmod +x /usr/local/bin/terragrunt /usr/local/bin/kubectl; \
     rm -rf /tmp/tools
+RUN addgroup -g 1000 tools && adduser -D -u 1000 -G tools tools
+USER tools
 WORKDIR /app
 ENV KUBECONFIG=/app/kubeconfig.yaml
 CMD ["bash"]

@@ -6,6 +6,13 @@ include "global" {
 }
 
 inputs = {
+  workload_identities = {
+    for name, identity in try(include.global.locals.config.workload_identities, {}) : name => {
+      namespace       = identity.namespace
+      service_account = identity.service_account
+      permissions     = identity.azure
+    }
+  }
   subscription_id                 = include.global.locals.config.azure.subscription_id
   tenant_id                       = include.global.locals.config.azure.tenant_id
   location                        = include.global.locals.config.azure.location
@@ -18,5 +25,5 @@ inputs = {
   subnet_cidr                     = include.global.locals.config.azure.network.subnet_cidr
   api_server_authorized_ip_ranges = include.global.locals.config.azure.network.api_server_authorized_ip_ranges
   node_pool                       = include.global.locals.config.azure.node_pool
-  kubeconfig_path                 = "${get_repo_root()}/kubeconfig.yaml"
+  kubeconfig_path                 = get_env("IAC_KUBECONFIG", "${get_repo_root()}/kubeconfig.yaml")
 }

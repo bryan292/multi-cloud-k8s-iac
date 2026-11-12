@@ -12,5 +12,5 @@ dependency "cluster" {
 }
 
 inputs = {
-  kubeconfig_path = "${get_repo_root()}/kubeconfig.yaml"
+  kubeconfig_path = get_env("IAC_KUBECONFIG", "${get_repo_root()}/kubeconfig.yaml")
 }

@@ -11,7 +11,7 @@ include "global" {
   expose = true
 }
 inputs = {
-  kubeconfig_path = "${get_repo_root()}/kubeconfig.yaml"
+  kubeconfig_path = get_env("IAC_KUBECONFIG", "${get_repo_root()}/kubeconfig.yaml")
   environment     = include.global.locals.config.global.environment
   provider_name   = include.global.locals.provider
   platform = merge(include.global.locals.config.platform, {

@@ -3,9 +3,8 @@ import importlib.util
 import unittest
 from pathlib import Path
 import yaml
-spec = importlib.util.spec_from_file_location("preflight", "scripts/preflight.py")
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
+from scripts import preflight as m
+
 class ConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.config = yaml.safe_load(Path("config.yaml_example").read_text())

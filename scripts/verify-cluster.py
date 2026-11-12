@@ -6,10 +6,10 @@ import subprocess
 import time
 from pathlib import Path
 
-import yaml
+from config import load_config
 
 root = Path(__file__).resolve().parents[1]
-config = yaml.safe_load((root / "config.yaml").read_text())
+config = load_config(os.environ.get("IAC_CONFIG", root / "config.yaml"))
 provider = config["global"]["provider"]
 os.environ.setdefault("KUBECONFIG", str(root / "kubeconfig.yaml"))
 

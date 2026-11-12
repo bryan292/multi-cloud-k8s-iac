@@ -1,5 +1,5 @@
 locals {
-  config   = yamldecode(file("${get_repo_root()}/config.yaml"))
+  config   = yamldecode(file(get_env("IAC_CONFIG", "${get_repo_root()}/config.yaml")))
   provider = local.config.global.provider
 }
 remote_state {

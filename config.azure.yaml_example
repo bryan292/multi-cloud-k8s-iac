@@ -1,0 +1,48 @@
+# Replace example identities, repository and commit before deploying.
+schema_version: 1
+global:
+  provider: azure
+  kubernetes_version: '1.35'
+  cluster_name: demo
+  environment: dev
+  common_tags:
+    Environment: dev
+    Project: multi-cloud-k8s-iac
+    ManagedBy: Terraform
+azure:
+  subscription_id: 00000000-0000-0000-0000-000000000000
+  tenant_id: 00000000-0000-0000-0000-000000000000
+  location: eastus
+  resource_group_name: dev-demo-aks
+  state:
+    resource_group_name: multi-cloud-k8s-iac-tfstate
+    storage_account_name: tfstateexample123
+    container_name: tfstate
+  network:
+    vnet_cidr: 10.70.0.0/16
+    subnet_cidr: 10.70.0.0/20
+    api_server_authorized_ip_ranges: []
+  node_pool:
+    vm_size: Standard_D2s_v3
+    zones:
+    - '1'
+    - '2'
+    min: 2
+    desired: 2
+    max: 4
+platform:
+  repository: https://github.com/example/helm-umbrella-charts.git
+  commit: 0123456789abcdef0123456789abcdef01234567
+  secret_name: ''
+  path: ''
+  acme_email: admin@example.com
+application:
+  enabled: false
+  repository: ''
+  commit: ''
+  path: ./
+  secret_name: ''
+
+# Optional application identities (no identities are created when omitted).
+# See docs/workload-identity.md for scoped permissions and GitOps bindings.
+# workload_identities: {}

@@ -1,0 +1,217 @@
+name: Reviewed cloud operation
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        type: choice
+        options: [aws, azure]
+        required: true
+      environment:
+        type: choice
+        options: [dev, staging, prod]
+        required: true
+      stage:
+        description: One stage belonging to the selected provider
+        type: choice
+        options: [aws/network, aws/eks, azure/aks, kubernetes, kube_resources]
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: cloud-${{ inputs.provider }}-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    uses: ./.github/workflows/validate.yml
+  plan:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.provider }}-${{ inputs.environment }}-plan
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      run_id: ${{ steps.bundle.outputs.run_id }}
+      plan_digest: ${{ steps.bundle.outputs.plan_digest }}
+      bundle_digest: ${{ steps.bundle.outputs.bundle_digest }}
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install validated hosted-runner tools
+        run: bash ci/install-tools.sh
+      - name: Enforce repository-owner approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY_ENVIRONMENT: ${{ inputs.provider }}-${{ inputs.environment }}-apply
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 ci/check_environment.py
+      - name: Authenticate to the restricted tunnel role
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        uses: aws-actions/configure-aws-credentials@416c15366b69fd69e1df1513e25ba57af8e11d5f
+        with:
+          role-to-assume: ${{ vars.TUNNEL_ROLE_ARN }}
+          aws-region: ${{ vars.TUNNEL_REGION }}
+          role-session-name: tunnel-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 7200
+          unset-current-credentials: true
+      - name: Open fixed-destination SSM tunnel
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        env:
+          TUNNEL_INSTANCE: ${{ vars.TUNNEL_INSTANCE_ID }}
+          TUNNEL_DOCUMENT: ${{ vars.TUNNEL_DOCUMENT }}
+          TUNNEL_REGION: ${{ vars.TUNNEL_REGION }}
+        run: python3 ci/tunnel.py start "$RUNNER_TEMP/iac-tunnel-$GITHUB_RUN_ID" "$TUNNEL_INSTANCE" "$TUNNEL_DOCUMENT" "$TUNNEL_REGION"
+      - uses: aws-actions/configure-aws-credentials@416c15366b69fd69e1df1513e25ba57af8e11d5f
+        if: inputs.provider == 'aws'
+        with:
+          unset-current-credentials: true
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: iac-plan-${{ github.run_id }}
+      - uses: azure/login@487024fc392f1f60cc70bc8a48233c14bc1de77f
+        if: inputs.provider == 'azure'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare ephemeral OIDC session
+        env:
+          IAC_CONFIG_JSON: ${{ secrets.IAC_CONFIG_JSON }}
+          IAC_PROVIDER: ${{ inputs.provider }}
+          IAC_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          umask 077
+          python3 ci/session.py "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID"
+      - name: Prepare existing cluster access
+        env:
+          IAC_TUNNEL: 'true'
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        run: python3 ci/kubeconfig.py "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID/config.json"
+      - name: Save one reviewed stage plan
+        env:
+          STAGE: ${{ inputs.stage }}
+        run: |
+          umask 077
+          python3 scripts/iac.py --config "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID/config.json" --json plan --stage "$STAGE" > "$RUNNER_TEMP/iac-events-$GITHUB_RUN_ID.json"
+      - name: Encrypt private plan bundle
+        id: bundle
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+        run: python3 ci/bundle.py pack "$RUNNER_TEMP/iac-events-$GITHUB_RUN_ID.json" "$RUNNER_TEMP/plan-$GITHUB_RUN_ID.gpg"
+      - name: Publish encrypted immutable artifact
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/plan-${{ github.run_id }}.gpg
+          retention-days: 1
+          if-no-files-found: error
+      - name: Review summary
+        env:
+          PLAN_DIGEST: ${{ steps.bundle.outputs.plan_digest }}
+        run: |
+          python3 ci/summary.py "$RUNNER_TEMP/iac-events-$GITHUB_RUN_ID.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Close job tunnel; retain access node and clusters
+        if: always()
+        run: python3 ci/tunnel.py stop "$RUNNER_TEMP/iac-tunnel-$GITHUB_RUN_ID"
+      - name: Remove local private files
+        if: always()
+        run: |
+          rm -rf -- .iac "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID"
+          rm -f -- "$RUNNER_TEMP/iac-events-$GITHUB_RUN_ID.json" "$RUNNER_TEMP/plan-$GITHUB_RUN_ID.gpg"
+  apply:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: ${{ inputs.provider }}-${{ inputs.environment }}-apply
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install validated hosted-runner tools
+        run: bash ci/install-tools.sh
+      - name: Enforce repository-owner approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY_ENVIRONMENT: ${{ inputs.provider }}-${{ inputs.environment }}-apply
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 ci/check_environment.py
+      - name: Authenticate to the restricted tunnel role
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        uses: aws-actions/configure-aws-credentials@416c15366b69fd69e1df1513e25ba57af8e11d5f
+        with:
+          role-to-assume: ${{ vars.TUNNEL_ROLE_ARN }}
+          aws-region: ${{ vars.TUNNEL_REGION }}
+          role-session-name: tunnel-${{ github.run_id }}-${{ github.run_attempt }}
+          role-duration-seconds: 7200
+          unset-current-credentials: true
+      - name: Open fixed-destination SSM tunnel
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        env:
+          TUNNEL_INSTANCE: ${{ vars.TUNNEL_INSTANCE_ID }}
+          TUNNEL_DOCUMENT: ${{ vars.TUNNEL_DOCUMENT }}
+          TUNNEL_REGION: ${{ vars.TUNNEL_REGION }}
+        run: python3 ci/tunnel.py start "$RUNNER_TEMP/iac-tunnel-$GITHUB_RUN_ID" "$TUNNEL_INSTANCE" "$TUNNEL_DOCUMENT" "$TUNNEL_REGION"
+      - uses: aws-actions/configure-aws-credentials@416c15366b69fd69e1df1513e25ba57af8e11d5f
+        if: inputs.provider == 'aws'
+        with:
+          unset-current-credentials: true
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: iac-apply-${{ github.run_id }}
+          role-duration-seconds: 7200
+      - uses: azure/login@487024fc392f1f60cc70bc8a48233c14bc1de77f
+        if: inputs.provider == 'azure'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Prepare ephemeral OIDC session
+        env:
+          IAC_CONFIG_JSON: ${{ secrets.IAC_CONFIG_JSON }}
+          IAC_PROVIDER: ${{ inputs.provider }}
+          IAC_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          umask 077
+          python3 ci/session.py "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID"
+      - name: Prepare existing cluster access
+        env:
+          IAC_TUNNEL: 'true'
+        if: inputs.stage == 'kubernetes' || inputs.stage == 'kube_resources'
+        run: python3 ci/kubeconfig.py "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID/config.json"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.plan.outputs.artifact_id }}
+          path: ${{ runner.temp }}/iac-artifact-${{ github.run_id }}
+          merge-multiple: true
+      - name: Verify and apply approved binary plan
+        env:
+          PLAN_ENCRYPTION_KEY: ${{ secrets.PLAN_ENCRYPTION_KEY }}
+          RUN_ID: ${{ needs.plan.outputs.run_id }}
+          BUNDLE_DIGEST: ${{ needs.plan.outputs.bundle_digest }}
+          PLAN_DIGEST: ${{ needs.plan.outputs.plan_digest }}
+        run: |
+          umask 077
+          python3 ci/bundle.py unpack "$RUNNER_TEMP/iac-artifact-$GITHUB_RUN_ID/plan-$GITHUB_RUN_ID.gpg" "$RUN_ID" "$BUNDLE_DIGEST" "$PLAN_DIGEST"
+          python3 scripts/iac.py --config "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID/config.json" --json deploy --plan-dir ".iac/runs/$RUN_ID" --plan-digest "$PLAN_DIGEST"
+      - name: Verify completed platform
+        if: inputs.stage == 'kube_resources'
+        run: python3 scripts/iac.py --config "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID/config.json" --json verify
+      - name: Close job tunnel; retain access node and clusters
+        if: always()
+        run: python3 ci/tunnel.py stop "$RUNNER_TEMP/iac-tunnel-$GITHUB_RUN_ID"
+      - name: Remove local private files; retain infrastructure
+        if: always()
+        run: |
+          rm -rf -- .iac "$RUNNER_TEMP/iac-session-$GITHUB_RUN_ID" "$RUNNER_TEMP/iac-artifact-$GITHUB_RUN_ID"

@@ -1,0 +1,599 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "enum": [
+            "aws",
+            "azure"
+          ]
+        },
+        "kubernetes_version": {
+          "type": "string",
+          "pattern": "^1\\.\\d{2}(\\.\\d+)?$"
+        },
+        "cluster_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,19}$"
+        },
+        "common_tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "provider",
+        "kubernetes_version",
+        "cluster_name",
+        "environment",
+        "common_tags"
+      ],
+      "additionalProperties": false
+    },
+    "aws": {
+      "type": "object",
+      "properties": {
+        "account_id": {
+          "type": "string",
+          "pattern": "^[0-9]{12}$"
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bucket_name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 63,
+          "pattern": "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state_region": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "account_id",
+        "profile",
+        "bucket_name",
+        "region",
+        "state_region"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "vpc_cidr": {
+          "type": "string",
+          "minLength": 1
+        },
+        "az_count": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 3
+        },
+        "single_nat_gateway": {
+          "type": "boolean"
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hosted_zone_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "vpc_cidr",
+        "az_count",
+        "single_nat_gateway",
+        "domain",
+        "hosted_zone_id"
+      ],
+      "additionalProperties": false
+    },
+    "eks": {
+      "type": "object",
+      "properties": {
+        "admin_cidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "admin_principal_arns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^arn:aws:iam::[0-9]{12}:(role|user)/.+$"
+          },
+          "minItems": 1
+        },
+        "node_instance_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "node_capacity_type": {
+          "enum": [
+            "ON_DEMAND",
+            "SPOT"
+          ]
+        },
+        "node_scaling": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "desired": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 2
+            }
+          },
+          "required": [
+            "min",
+            "desired",
+            "max"
+          ],
+          "additionalProperties": false
+        },
+        "addon_versions": {
+          "type": "object",
+          "properties": {
+            "coredns": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kube_proxy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "vpc_cni": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ebs_csi": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "admin_cidrs",
+        "admin_principal_arns",
+        "node_instance_types",
+        "node_capacity_type",
+        "node_scaling",
+        "addon_versions"
+      ],
+      "additionalProperties": false
+    },
+    "azure": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "tenant_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource_group_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 90,
+          "pattern": "^[A-Za-z0-9_().-]*[A-Za-z0-9_()-]$"
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "resource_group_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 90,
+              "pattern": "^[A-Za-z0-9_().-]*[A-Za-z0-9_()-]$"
+            },
+            "storage_account_name": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{3,24}$"
+            },
+            "container_name": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "minLength": 3,
+              "maxLength": 63
+            }
+          },
+          "required": [
+            "resource_group_name",
+            "storage_account_name",
+            "container_name"
+          ],
+          "additionalProperties": false
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "vnet_cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subnet_cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "api_server_authorized_ip_ranges": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "vnet_cidr",
+            "subnet_cidr",
+            "api_server_authorized_ip_ranges"
+          ],
+          "additionalProperties": false
+        },
+        "node_pool": {
+          "type": "object",
+          "properties": {
+            "vm_size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "zones": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "1",
+                  "2",
+                  "3"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "min": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "desired": {
+              "type": "integer",
+              "minimum": 2
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 2
+            }
+          },
+          "required": [
+            "vm_size",
+            "zones",
+            "min",
+            "desired",
+            "max"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "subscription_id",
+        "tenant_id",
+        "location",
+        "resource_group_name",
+        "state",
+        "network",
+        "node_pool"
+      ],
+      "additionalProperties": false
+    },
+    "umbrella": {
+      "type": "object",
+      "properties": {
+        "metrics_server": {
+          "type": "boolean"
+        },
+        "aws_load_balancer_controller": {
+          "type": "boolean"
+        },
+        "cert_manager": {
+          "type": "boolean"
+        },
+        "external_dns": {
+          "type": "boolean"
+        },
+        "cluster_autoscaler": {
+          "type": "boolean"
+        },
+        "monitoring": {
+          "type": "boolean"
+        },
+        "loki": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "metrics_server",
+        "aws_load_balancer_controller",
+        "cert_manager",
+        "external_dns",
+        "cluster_autoscaler",
+        "monitoring",
+        "loki"
+      ],
+      "additionalProperties": false
+    },
+    "platform": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^https://[^/]+/.+"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "secret_name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "acme_email": {
+          "type": "string",
+          "format": "email"
+        }
+      },
+      "required": [
+        "repository",
+        "commit",
+        "secret_name",
+        "path",
+        "acme_email"
+      ],
+      "additionalProperties": false
+    },
+    "application": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{40})?$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secret_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "repository",
+        "commit",
+        "path",
+        "secret_name"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "repository": {
+                "type": "string",
+                "pattern": "^https://[^/]+/.+"
+              },
+              "commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "workload_identities": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,23}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "service_account": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "aws": {
+            "type": "object",
+            "properties": {
+              "statements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]+:[A-Za-z][A-Za-z0-9]+$"
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^arn:aws[a-z-]*:[a-z0-9-]+:[^*?]*:[^*?]*:[^*?]+$"
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [
+                    "actions",
+                    "resources"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "statements"
+            ],
+            "additionalProperties": false
+          },
+          "azure": {
+            "type": "object",
+            "properties": {
+              "role_assignments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string",
+                      "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/resourceGroups/[^/*?]+(/providers/[^*?]+)?$"
+                    },
+                    "role_definition_id": {
+                      "type": "string",
+                      "pattern": "^/subscriptions/[0-9a-fA-F-]{36}/providers/Microsoft.Authorization/roleDefinitions/[0-9a-fA-F-]{36}$"
+                    }
+                  },
+                  "required": [
+                    "scope",
+                    "role_definition_id"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "role_assignments"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "namespace",
+          "service_account"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "global",
+    "platform",
+    "application"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "global": {
+            "properties": {
+              "provider": {
+                "const": "aws"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "aws",
+          "network",
+          "eks",
+          "umbrella"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "global": {
+            "properties": {
+              "provider": {
+                "const": "azure"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "azure"
+        ]
+      }
+    }
+  ]
+}

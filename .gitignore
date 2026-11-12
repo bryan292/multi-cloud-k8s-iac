@@ -51,3 +51,10 @@ terraform.rc
 # Residual caches from the previous directory layout
 /env/
 __pycache__/
+
+# Configuration migration backups may contain private configuration.
+config*.yaml.bak
+
+.deployment-targets/
+
+.iac/

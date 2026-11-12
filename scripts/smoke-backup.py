@@ -3,13 +3,22 @@
 import json, os, subprocess, sys, time
 from pathlib import Path
 import yaml
+from config import load_config
+from target import cloud_environment
 root = Path(__file__).resolve().parents[1]
-c = yaml.safe_load((root / 'config.yaml').read_text())
+c = load_config(os.environ.get('IAC_CONFIG', root / 'config.yaml'))
+if c['global']['provider'] != 'aws':
+    raise SystemExit('This smoke test requires AWS')
+_cloud_env = cloud_environment(c)
+for _key in list(os.environ):
+    if _key not in _cloud_env:
+        del os.environ[_key]
+os.environ.update(_cloud_env)
 os.environ.setdefault('KUBECONFIG', str(root / 'kubeconfig.yaml'))
 namespace, original_volume = sys.argv[1:]
 if not namespace.startswith('iac-storage-smoke-'):
     raise SystemExit('Only the isolated storage smoke-test namespace is supported')
-region, account = c['global']['region'], c['global']['account_id']
+region, account = c['aws']['region'], c['aws']['account_id']
 cluster = f"{c['global']['environment']}-{c['global']['cluster_name']}-cluster"
 restored_volume = recovery_point = job = None
 pv = namespace + '-restore'

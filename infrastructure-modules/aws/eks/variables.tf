@@ -113,3 +113,9 @@ variable "addon_versions" {
   type    = object({ coredns = optional(string), kube_proxy = optional(string), vpc_cni = optional(string), ebs_csi = optional(string) })
   default = {}
 }
+
+variable "kubeconfig_path" {
+  description = "Optional explicit kubeconfig path for isolated operational targets."
+  type        = string
+  default     = null
+}

@@ -171,7 +171,7 @@ module "cluster_autoscaler_role" {
 
 
 resource "local_file" "kubeconfig" {
-  filename             = "${var.terragrunt_dir}/../../../kubeconfig.yaml"
+  filename             = var.kubeconfig_path != null ? var.kubeconfig_path : "${var.terragrunt_dir}/../../../kubeconfig.yaml"
   file_permission      = "0600"
   directory_permission = "0700"
   content = templatefile("${path.module}/kubeconfig.tpl", {

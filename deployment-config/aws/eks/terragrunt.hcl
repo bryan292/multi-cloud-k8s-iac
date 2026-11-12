@@ -5,6 +5,14 @@ include "global" {
   expose = true
 }
 inputs = {
+  workload_identities = {
+    for name, identity in try(include.global.locals.config.workload_identities, {}) : name => {
+      namespace       = identity.namespace
+      service_account = identity.service_account
+      permissions     = identity.aws
+    }
+  }
+  kubeconfig_path          = get_env("IAC_KUBECONFIG", "${get_repo_root()}/kubeconfig.yaml")
   terragrunt_dir           = get_terragrunt_dir()
   cluster_name             = "${include.global.locals.config.global.cluster_name}-cluster"
   environment              = include.global.locals.config.global.environment

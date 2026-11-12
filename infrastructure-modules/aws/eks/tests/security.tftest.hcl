@@ -48,3 +48,48 @@ run "reject_invalid_scaling" {
   variables { node_scaling = { min = 2, max = 3, desired = 4 } }
   expect_failures = [var.node_scaling]
 }
+
+run "workload_exact_subject" {
+  command = plan
+  override_module {
+    target = module.eks
+    outputs = {
+      cluster_name                       = "test-cluster"
+      cluster_endpoint                   = "https://example.invalid"
+      cluster_certificate_authority_data = "Y2E="
+      cluster_security_group_id          = "sg-0123456789abcdef0"
+      cluster_id                         = "test-cluster"
+      oidc_provider                      = "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE"
+      oidc_provider_arn                  = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE"
+    }
+  }
+  variables {
+    workload_identities = {
+      reader = {
+        namespace       = "application"
+        service_account = "reader"
+        permissions     = { statements = [{ actions = ["s3:GetBucketLocation"], resources = ["arn:aws:s3:::application-data"] }] }
+      }
+    }
+  }
+  assert {
+    condition = tomap(jsondecode(aws_iam_role.workload["reader"].assume_role_policy).Statement[0].Condition.StringEquals) == tomap({
+      "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE:sub" = "system:serviceaccount:application:reader"
+      "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLE:aud" = "sts.amazonaws.com"
+    })
+    error_message = "Trust must bind the exact issuer, service account and audience."
+  }
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.workload["reader"].policy).Statement[0].Resource[0] == "arn:aws:s3:::application-data"
+    error_message = "Workload permission must preserve the exact resource scope."
+  }
+}
+run "reject_workload_wildcard" {
+  command = plan
+  variables {
+    workload_identities = {
+      reader = { namespace = "application", service_account = "reader", permissions = { statements = [{ actions = ["s3:*"], resources = ["*"] }] } }
+    }
+  }
+  expect_failures = [var.workload_identities]
+}

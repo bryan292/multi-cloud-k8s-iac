@@ -3,16 +3,25 @@
 import json, os, subprocess, time, urllib.request, uuid
 from pathlib import Path
 import yaml
+from config import load_config
+from target import cloud_environment
 from dns_records import records_for_test
 root = Path(__file__).resolve().parents[1]
-c = yaml.safe_load((root / 'config.yaml').read_text())
+c = load_config(os.environ.get('IAC_CONFIG', root / 'config.yaml'))
+if c['global']['provider'] != 'aws':
+    raise SystemExit('This smoke test requires AWS')
+_cloud_env = cloud_environment(c)
+for _key in list(os.environ):
+    if _key not in _cloud_env:
+        del os.environ[_key]
+os.environ.update(_cloud_env)
 os.environ.setdefault('KUBECONFIG', str(root / 'kubeconfig.yaml'))
 name = 'iac-smoke-' + uuid.uuid4().hex[:10]
 hostname = name + '.' + c['network']['domain']
 zone = c['network']['hosted_zone_id']
 
 def aws(*args):
-    return json.loads(subprocess.check_output(['aws', *args, '--region', c['global']['region'], '--output', 'json'], text=True))
+    return json.loads(subprocess.check_output(['aws', *args, '--region', c['aws']['region'], '--output', 'json'], text=True))
 
 def kube(*args, input=None):
     return subprocess.check_output(['kubectl', *args], input=input, text=True)
